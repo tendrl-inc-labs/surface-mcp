@@ -1,0 +1,89 @@
+# SrcFile MCP Server
+
+Model Context Protocol server for [SrcFile](https://srcfile.io). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
+
+## Setup
+
+```bash
+cd mcp-server
+npm install
+npm run build
+```
+
+## Configuration
+
+Set your API key:
+
+```bash
+export SRCFILE_KEY="sfk_xxx.secret"
+```
+
+Optionally set a custom base URL (defaults to `https://api.srcfile.io`):
+
+```bash
+export SRCFILE_BASE_URL="http://localhost:8080"
+```
+
+## Usage with Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "srcfile": {
+      "command": "node",
+      "args": ["/path/to/srcfile/mcp-server/dist/index.js"],
+      "env": {
+        "SRCFILE_KEY": "sfk_xxx.secret"
+      }
+    }
+  }
+}
+```
+
+## Usage with Claude Code
+
+Add to your Claude Code settings:
+
+```bash
+claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE_KEY=sfk_xxx.secret
+```
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `scan_file` | Upload and scan a file for malware (accepts absolute file path) |
+| `get_scan` | Poll a deferred scan result by scan ID |
+| `get_account` | Get account details |
+| `get_usage` | Get credit usage |
+| `list_profiles` | List scan profiles |
+| `create_profile` | Create a scan profile |
+| `update_profile` | Update a scan profile |
+| `delete_profile` | Delete a scan profile |
+| `list_api_keys` | List API keys |
+| `create_api_key` | Create an API key |
+| `delete_api_key` | Delete an API key |
+| `get_scan_history` | Get paginated scan history |
+| `get_scan_detail` | Get full details of a historical scan |
+| `get_plans` | Get available billing plans |
+
+## Resources
+
+| Resource | URI | Description |
+|----------|-----|-------------|
+| API Reference | `srcfile://docs/api-reference` | Complete REST API documentation |
+| SDK Quick Reference | `srcfile://docs/sdk-overview` | Side-by-side SDK comparison |
+| Webhook Guide | `srcfile://docs/webhooks` | Webhook setup and signature verification |
+| Python SDK Docs | `srcfile://docs/sdk/python` | Python SDK README |
+| JavaScript SDK Docs | `srcfile://docs/sdk/javascript` | JS/TS SDK README |
+| Go SDK Docs | `srcfile://docs/sdk/go` | Go SDK README |
+| SDK Source Files | `srcfile://src/sdk/{lang}/*` | SDK source code (client, models, errors, webhook) |
+
+## Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `analyze_scan_result` | Analyze a scan result JSON and provide security assessment |
+| `generate_sdk_code` | Generate SDK code for a given language and use case |
