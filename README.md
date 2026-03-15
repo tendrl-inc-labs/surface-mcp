@@ -18,10 +18,10 @@ Set your API key:
 export SRCFILE_KEY="sfk_xxx.secret"
 ```
 
-Optionally set a custom base URL (defaults to `https://api.srcfile.io`):
+Optionally set a custom base URL (defaults to `https://api.srcfile.io`). For a local deployment of the open-source backend, include the `/api` path:
 
 ```bash
-export SRCFILE_BASE_URL="http://localhost:8080"
+export SRCFILE_BASE_URL="http://localhost:8080/api"
 ```
 
 ## Usage with Claude Desktop
