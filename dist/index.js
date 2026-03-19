@@ -371,10 +371,10 @@ Upload and scan a file for malware.
     "threatLevel": "Malicious",
     "confidence": "High",
     "confidenceScore": 0.92,
-    "confidenceReason": "5 engines analyzed, antivirus detection confirmed",
+    "confidenceReason": "5 engines analyzed, known malware signature matched",
     "primaryThreat": "Trojan.GenericKD",
-    "threatSummary": "Known malware signature detected by ClamAV",
-    "enginesUsed": ["ClamAV", "YARA", "StaticAnalysis", "TLSH", "Capa"],
+    "threatSummary": "Known malware signature matched",
+    "enginesUsed": ["Malware Signatures", "YARA", "StaticAnalysis", "TLSH", "Capa"],
     "recommendedAction": "Block",
     "cveFindings": []
   },
@@ -569,7 +569,7 @@ Every scan returns a \`safetyScore\` object:
 ## Scan Engines
 
 SrcFile uses multiple analysis engines:
-- **ClamAV** — Signature-based antivirus
+- **Malware Signatures** — Hash-based known-malware detection
 - **YARA** — Rule-based pattern matching with auto-updating rules
 - **Static Analysis** — PE header analysis, import table inspection
 - **TLSH** — Fuzzy hash similarity matching against known malware
