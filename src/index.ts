@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execFile } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -24,6 +25,61 @@ function getApiKey(): string {
     );
   }
   return key;
+}
+
+/** Path to a local scanner binary. When set, scan_file shells out instead of calling the API. */
+function getScannerPath(): string | undefined {
+  return process.env.SRCFILE_SCANNER_PATH;
+}
+
+// ---------------------------------------------------------------------------
+// Local scanner execution
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the local scanner binary on a file and return parsed JSON output.
+ * The binary is invoked with `--format json --api-key <key> <file>`.
+ * The API key allows the binary to report results to the server and
+ * validate credits.
+ */
+async function localScan(
+  scannerPath: string,
+  filePath: string,
+): Promise<unknown> {
+  const apiKey = getApiKey();
+
+  return new Promise((resolve, reject) => {
+    const args = ["--format", "json"];
+
+    // Pass API key so the binary can report results and validate credits
+    args.push("--api-key", apiKey);
+
+    args.push(filePath);
+
+    execFile(
+      scannerPath,
+      args,
+      { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
+      (error, stdout, _stderr) => {
+        // The scanner exits 1 for Malicious/Suspicious verdicts — that's
+        // expected, not an error. Only reject if there's no parseable output.
+        const output = stdout?.trim();
+        if (!output) {
+          return reject(
+            new Error(
+              `Scanner produced no output. ${error?.message ?? ""}`.trim(),
+            ),
+          );
+        }
+
+        try {
+          resolve(JSON.parse(output));
+        } catch {
+          reject(new Error(`Failed to parse scanner output: ${output.slice(0, 500)}`));
+        }
+      },
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +187,7 @@ const server = new McpServer({
 // --- Scan File ---
 server.tool(
   "scan_file",
-  "Upload and scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path.",
+  "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SRCFILE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the SrcFile API.",
   {
     file_path: z.string().describe("Absolute path to the file to scan"),
     defer: z
@@ -146,6 +202,32 @@ server.tool(
       .describe("Optional client-generated request ID for idempotency"),
   },
   async ({ file_path: filePath, defer: deferScan, request_id: requestId }) => {
+    const scannerPath = getScannerPath();
+
+    // Local scanner mode: shell out to the binary instead of calling the API.
+    // Files are scanned locally and never uploaded. The API key is still passed
+    // so the binary can report results to the server and validate credits.
+    if (scannerPath) {
+      if (deferScan) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Deferred scanning is not supported in local scanner mode. Remove the `defer` option or unset SRCFILE_SCANNER_PATH to use the API.",
+            },
+          ],
+        };
+      }
+
+      const result = await localScan(scannerPath, filePath);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    }
+
+    // API mode: upload to the remote scanner
     const params: Record<string, string> = {};
     if (deferScan) params.defer = "true";
     if (requestId) params.request_id = requestId;

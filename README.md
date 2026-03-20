@@ -18,7 +18,19 @@ Set your API key:
 export SRCFILE_KEY="sfk_xxx.secret"
 ```
 
-Optionally set a custom base URL (defaults to `https://api.srcfile.io`). For a local deployment of the open-source backend, include the `/api` path:
+### Optional: Local Scanner
+
+Point `SRCFILE_SCANNER_PATH` at the SrcFile scanner binary to scan files locally. Files never leave your machine — the binary runs on your hardware and reports results to the server.
+
+```bash
+export SRCFILE_SCANNER_PATH="/usr/local/bin/srcfile-scanner"
+```
+
+When this is not set, `scan_file` uploads to the API instead.
+
+### Optional: Custom API URL
+
+Set a custom base URL (defaults to `https://api.srcfile.io`). For a local deployment of the open-source backend, include the `/api` path:
 
 ```bash
 export SRCFILE_BASE_URL="http://localhost:8080/api"
@@ -42,12 +54,33 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
+With local scanner (files never leave your machine):
+
+```json
+{
+  "mcpServers": {
+    "srcfile": {
+      "command": "node",
+      "args": ["/path/to/srcfile/mcp-server/dist/index.js"],
+      "env": {
+        "SRCFILE_KEY": "sfk_xxx.secret",
+        "SRCFILE_SCANNER_PATH": "/usr/local/bin/srcfile-scanner"
+      }
+    }
+  }
+}
+```
+
 ## Usage with Claude Code
 
 Add to your Claude Code settings:
 
 ```bash
+# API mode (uploads to server)
 claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE_KEY=sfk_xxx.secret
+
+# Local scanner mode (files stay on your machine)
+claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE_KEY=sfk_xxx.secret -e SRCFILE_SCANNER_PATH=/usr/local/bin/srcfile-scanner
 ```
 
 ## Tools
