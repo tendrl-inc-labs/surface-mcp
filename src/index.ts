@@ -317,7 +317,7 @@ server.tool(
     if (deferScan) params.defer = "true";
 
     // Send raw — the API accepts raw text payloads by default (no base64 needed for text)
-    const body = JSON.stringify({ payload, label: label ?? "payload.bin" });
+    const body = JSON.stringify({ payload, label: label || undefined });
     const query = Object.keys(params).length
       ? "?" + new URLSearchParams(params).toString()
       : "";
