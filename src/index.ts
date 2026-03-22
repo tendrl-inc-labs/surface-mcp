@@ -241,6 +241,114 @@ server.tool(
   },
 );
 
+// --- Scan Payload ---
+server.tool(
+  "scan_payload",
+  "Scan a raw string or payload for malware without file upload. Content type is auto-detected from bytes. Useful for scanning API request/response bodies, form inputs, agent messages, or any text content inline. When SRCFILE_SCANNER_PATH is set, scans locally via stdin. Otherwise sends to the SrcFile API.",
+  {
+    payload: z
+      .string()
+      .describe(
+        "The content to scan. Can be raw text/code or base64-encoded binary data.",
+      ),
+    label: z
+      .string()
+      .optional()
+      .describe(
+        'Optional label for the payload (e.g. "api-request", "agent-message.json"). Content type is auto-detected.',
+      ),
+    defer: z
+      .boolean()
+      .optional()
+      .describe("If true, returns immediately with a scan ID for polling."),
+  },
+  async ({ payload, label, defer: deferScan }) => {
+    const scannerPath = getScannerPath();
+
+    // Local scanner mode: pipe via stdin (always raw bytes)
+    if (scannerPath) {
+      const rawContent = Buffer.from(payload, "utf-8");
+
+      return new Promise((resolve, reject) => {
+        const args = [
+          "--stdin",
+          "--label",
+          label ?? "payload.bin",
+          "--format",
+          "json",
+          "--api-key",
+          getApiKey(),
+        ];
+
+        const child = execFile(
+          scannerPath,
+          args,
+          { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
+          (error, stdout, _stderr) => {
+            const output = stdout?.trim();
+            if (!output) {
+              return reject(
+                new Error(
+                  `Scanner produced no output. ${error?.message ?? ""}`.trim(),
+                ),
+              );
+            }
+            try {
+              const result = JSON.parse(output);
+              resolve({
+                content: [
+                  { type: "text", text: JSON.stringify(result, null, 2) },
+                ],
+              });
+            } catch {
+              reject(new Error(`Invalid scanner output: ${output}`));
+            }
+          },
+        );
+
+        // Write payload to stdin
+        child.stdin?.write(rawContent);
+        child.stdin?.end();
+      });
+    }
+
+    // API mode: POST JSON to /scan/payload
+    const params: Record<string, string> = {};
+    if (deferScan) params.defer = "true";
+
+    // Send raw — the API accepts raw text payloads by default (no base64 needed for text)
+    const body = JSON.stringify({ payload, label: label ?? "payload.bin" });
+    const query = Object.keys(params).length
+      ? "?" + new URLSearchParams(params).toString()
+      : "";
+    const url = `${getBaseUrl()}/scan/payload${query}`;
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getApiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
+    if (!resp.ok) {
+      let errorBody: string;
+      try {
+        errorBody = JSON.stringify(await resp.json());
+      } catch {
+        errorBody = await resp.text();
+      }
+      throw new Error(`HTTP ${resp.status}: ${errorBody}`);
+    }
+
+    const result = await resp.json();
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
 // --- Get Scan (poll deferred) ---
 server.tool(
   "get_scan",

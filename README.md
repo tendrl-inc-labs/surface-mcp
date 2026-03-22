@@ -88,6 +88,7 @@ claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE
 | Tool | Description |
 |------|-------------|
 | `scan_file` | Upload and scan a file for malware (accepts absolute file path) |
+| `scan_payload` | Scan raw content by payload (`payload`, `label`, `encoding`, `defer` params; raw text default, base64 for binary; max 10 MB) |
 | `get_scan` | Poll a deferred scan result by scan ID |
 | `get_account` | Get account details |
 | `get_usage` | Get credit usage |
