@@ -40,7 +40,7 @@ function getScannerPath(): string | undefined {
  * Run the local scanner binary on a file and return parsed JSON output.
  * The binary is invoked with `--format json --api-key <key> <file>`.
  * The API key allows the binary to report results to the server and
- * validate credits.
+ * validate monthly scan quota.
  */
 async function localScan(
   scannerPath: string,
@@ -51,7 +51,7 @@ async function localScan(
   return new Promise((resolve, reject) => {
     const args = ["--format", "json"];
 
-    // Pass API key so the binary can report results and validate credits
+    // Pass API key so the binary can report results and respect server quota
     args.push("--api-key", apiKey);
 
     args.push(filePath);
@@ -206,7 +206,7 @@ server.tool(
 
     // Local scanner mode: shell out to the binary instead of calling the API.
     // Files are scanned locally and never uploaded. The API key is still passed
-    // so the binary can report results to the server and validate credits.
+    // so the binary can report results to the server and respect server quota.
     if (scannerPath) {
       if (deferScan) {
         return {
@@ -380,7 +380,7 @@ server.tool(
 // --- Get Usage ---
 server.tool(
   "get_usage",
-  "Get current credit usage for the account (credits used, monthly limit, reset date).",
+  "Get current scan usage for the account (used vs monthly limit, reset date; response may use legacy credits_* JSON field names).",
   {},
   async () => {
     const result = await apiRequest("GET", "/account/usage");
@@ -572,7 +572,7 @@ server.tool(
 // --- Get Billing Plans ---
 server.tool(
   "get_plans",
-  "Get available billing plans and credit tiers.",
+  "Get available billing plans and scan limits.",
   {},
   async () => {
     const result = await apiRequest("GET", "/billing/plans");
@@ -752,7 +752,7 @@ Poll the result of a deferred scan.
 Get account details (email, plan, settings, scan counts).
 
 ### GET /account/usage
-Get credit usage.
+Scan usage vs monthly allowance. Field names may still use \`credits_*\` / \`monthly_credits\` for API compatibility.
 \`\`\`json
 {
   "credits_used": 45,
@@ -838,7 +838,7 @@ Delete a key.
 ## Billing
 
 ### GET /billing/plans
-Get available plans and credit tiers (public endpoint, no auth required).
+Get available plans and scan limits (public endpoint, no auth required).
 
 ---
 
@@ -886,7 +886,7 @@ All errors return JSON: \`{"error": "message", "requestId": "uuid"}\`
 | 401 | AuthenticationError | Invalid or missing API key |
 | 404 | NotFoundError | Resource not found |
 | 429 | RateLimitError | Too many requests (has Retry-After header) |
-| 429 | QuotaExceededError | Monthly credit quota exhausted |
+| 429 | QuotaExceededError | Monthly scan quota exhausted |
 
 ---
 
@@ -1120,7 +1120,7 @@ results, _ := client.ScanFiles(ctx, paths, nil, 5)
 | ValidationError | 400 | Invalid request |
 | NotFoundError | 404 | Resource not found |
 | RateLimitError | 429 | Too many requests |
-| QuotaExceededError | 429 | Monthly credits exhausted |
+| QuotaExceededError | 429 | Monthly scan quota exhausted |
 | SrcFileError | * | Base error class |
 
 ## HTTP/2

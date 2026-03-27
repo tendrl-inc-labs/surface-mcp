@@ -33,7 +33,7 @@ When this is not set, `scan_file` uploads to the API instead.
 Set a custom base URL (defaults to `https://api.srcfile.io`). For a local deployment of the open-source backend, include the `/api` path:
 
 ```bash
-export SRCFILE_BASE_URL="http://localhost:8080/api"
+export SRCFILE_BASE_URL="http://localhost:9080/api"
 ```
 
 ## Usage with Claude Desktop
@@ -91,7 +91,7 @@ claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE
 | `scan_payload` | Scan raw content for threats — detects prompt injection, SQL/XSS injection, credential leaks, malicious code, and suspicious tool calls. Accepts raw text (default) or base64 for binary. Max 10 MB. |
 | `get_scan` | Poll a deferred scan result by scan ID |
 | `get_account` | Get account details |
-| `get_usage` | Get credit usage |
+| `get_usage` | Get scan usage vs monthly limit |
 | `list_profiles` | List scan profiles |
 | `create_profile` | Create a scan profile |
 | `update_profile` | Update a scan profile |
