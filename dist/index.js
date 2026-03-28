@@ -8,20 +8,20 @@ import { execFile } from "node:child_process";
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
-const DEFAULT_BASE_URL = "https://api.srcfile.io";
+const DEFAULT_BASE_URL = "https://api.surface.io";
 function getBaseUrl() {
-    return process.env.SRCFILE_BASE_URL ?? DEFAULT_BASE_URL;
+    return process.env.SURFACE_BASE_URL ?? DEFAULT_BASE_URL;
 }
 function getApiKey() {
-    const key = process.env.SRCFILE_KEY;
+    const key = process.env.SURFACE_KEY;
     if (!key) {
-        throw new Error("SRCFILE_KEY environment variable is required. Set it to your SrcFile API key.");
+        throw new Error("SURFACE_KEY environment variable is required. Set it to your Surface API key.");
     }
     return key;
 }
 /** Path to a local scanner binary. When set, scan_file shells out instead of calling the API. */
 function getScannerPath() {
-    return process.env.SRCFILE_SCANNER_PATH;
+    return process.env.SURFACE_SCANNER_PATH;
 }
 // ---------------------------------------------------------------------------
 // Local scanner execution
@@ -127,14 +127,14 @@ const ROOT = projectRoot();
 // MCP Server
 // ---------------------------------------------------------------------------
 const server = new McpServer({
-    name: "srcfile",
+    name: "surface",
     version: "1.0.0",
 });
 // ===========================
 // TOOLS — API Operations
 // ===========================
 // --- Scan File ---
-server.tool("scan_file", "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SRCFILE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the SrcFile API.", {
+server.tool("scan_file", "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SURFACE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the Surface API.", {
     file_path: z.string().describe("Absolute path to the file to scan"),
     defer: z
         .boolean()
@@ -155,7 +155,7 @@ server.tool("scan_file", "Scan a file for malware. Returns safety score, threat 
                 content: [
                     {
                         type: "text",
-                        text: "Deferred scanning is not supported in local scanner mode. Remove the `defer` option or unset SRCFILE_SCANNER_PATH to use the API.",
+                        text: "Deferred scanning is not supported in local scanner mode. Remove the `defer` option or unset SURFACE_SCANNER_PATH to use the API.",
                     },
                 ],
             };
@@ -337,28 +337,28 @@ function readFileResource(filePath) {
     }
 }
 // --- SDK READMEs ---
-server.resource("Python SDK Documentation", "srcfile://docs/sdk/python", { description: "Python SDK README — installation, usage, async client, batch scanning, error handling" }, () => ({
+server.resource("Python SDK Documentation", "surface://docs/sdk/python", { description: "Python SDK README — installation, usage, async client, batch scanning, error handling" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/sdk/python",
+            uri: "surface://docs/sdk/python",
             mimeType: "text/markdown",
             text: readFileResource(path.join(ROOT, "sdks/python/README.md")),
         },
     ],
 }));
-server.resource("JavaScript SDK Documentation", "srcfile://docs/sdk/javascript", { description: "JavaScript/TypeScript SDK README — installation, usage, batch scanning, HTTP/2, error handling" }, () => ({
+server.resource("JavaScript SDK Documentation", "surface://docs/sdk/javascript", { description: "JavaScript/TypeScript SDK README — installation, usage, batch scanning, HTTP/2, error handling" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/sdk/javascript",
+            uri: "surface://docs/sdk/javascript",
             mimeType: "text/markdown",
             text: readFileResource(path.join(ROOT, "sdks/javascript/README.md")),
         },
     ],
 }));
-server.resource("Go SDK Documentation", "srcfile://docs/sdk/go", { description: "Go SDK README — installation, usage, batch scanning, error handling" }, () => ({
+server.resource("Go SDK Documentation", "surface://docs/sdk/go", { description: "Go SDK README — installation, usage, batch scanning, error handling" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/sdk/go",
+            uri: "surface://docs/sdk/go",
             mimeType: "text/markdown",
             text: readFileResource(path.join(ROOT, "sdks/go/README.md")),
         },
@@ -366,17 +366,17 @@ server.resource("Go SDK Documentation", "srcfile://docs/sdk/go", { description: 
 }));
 // --- SDK Source Code ---
 const sdkSources = [
-    { name: "Python SDK Client Source", uri: "srcfile://src/sdk/python/client", file: "sdks/python/srcfile/client.py" },
-    { name: "Python SDK Models Source", uri: "srcfile://src/sdk/python/models", file: "sdks/python/srcfile/models.py" },
-    { name: "Python SDK Errors Source", uri: "srcfile://src/sdk/python/errors", file: "sdks/python/srcfile/errors.py" },
-    { name: "JavaScript SDK Client Source", uri: "srcfile://src/sdk/javascript/client", file: "sdks/javascript/src/client.ts" },
-    { name: "JavaScript SDK Models Source", uri: "srcfile://src/sdk/javascript/models", file: "sdks/javascript/src/models.ts" },
-    { name: "JavaScript SDK Errors Source", uri: "srcfile://src/sdk/javascript/errors", file: "sdks/javascript/src/errors.ts" },
-    { name: "JavaScript SDK Webhook Source", uri: "srcfile://src/sdk/javascript/webhook", file: "sdks/javascript/src/webhook.ts" },
-    { name: "Go SDK Source", uri: "srcfile://src/sdk/go/srcfile", file: "sdks/go/srcfile.go" },
-    { name: "Go SDK Models Source", uri: "srcfile://src/sdk/go/models", file: "sdks/go/models.go" },
-    { name: "Go SDK Errors Source", uri: "srcfile://src/sdk/go/errors", file: "sdks/go/errors.go" },
-    { name: "Go SDK Webhook Source", uri: "srcfile://src/sdk/go/webhook", file: "sdks/go/webhook.go" },
+    { name: "Python SDK Client Source", uri: "surface://src/sdk/python/client", file: "sdks/python/surface/client.py" },
+    { name: "Python SDK Models Source", uri: "surface://src/sdk/python/models", file: "sdks/python/surface/models.py" },
+    { name: "Python SDK Errors Source", uri: "surface://src/sdk/python/errors", file: "sdks/python/surface/errors.py" },
+    { name: "JavaScript SDK Client Source", uri: "surface://src/sdk/javascript/client", file: "sdks/javascript/src/client.ts" },
+    { name: "JavaScript SDK Models Source", uri: "surface://src/sdk/javascript/models", file: "sdks/javascript/src/models.ts" },
+    { name: "JavaScript SDK Errors Source", uri: "surface://src/sdk/javascript/errors", file: "sdks/javascript/src/errors.ts" },
+    { name: "JavaScript SDK Webhook Source", uri: "surface://src/sdk/javascript/webhook", file: "sdks/javascript/src/webhook.ts" },
+    { name: "Go SDK Source", uri: "surface://src/sdk/go/surface", file: "sdks/go/surface.go" },
+    { name: "Go SDK Models Source", uri: "surface://src/sdk/go/models", file: "sdks/go/models.go" },
+    { name: "Go SDK Errors Source", uri: "surface://src/sdk/go/errors", file: "sdks/go/errors.go" },
+    { name: "Go SDK Webhook Source", uri: "surface://src/sdk/go/webhook", file: "sdks/go/webhook.go" },
 ];
 for (const src of sdkSources) {
     const mime = src.file.endsWith(".py")
@@ -395,9 +395,9 @@ for (const src of sdkSources) {
     }));
 }
 // --- API Reference (comprehensive markdown) ---
-const apiReference = `# SrcFile API Reference
+const apiReference = `# Surface API Reference
 
-Base URL: \`https://api.srcfile.io\`
+Base URL: \`https://api.surface.io\`
 
 All authenticated endpoints require \`Authorization: Bearer <api_key>\` header.
 
@@ -574,11 +574,11 @@ Unblock an IP.
 
 ## Webhooks
 
-When a scan profile has a \`webhook_url\` configured, SrcFile POSTs the scan result to that URL after every scan.
+When a scan profile has a \`webhook_url\` configured, Surface POSTs the scan result to that URL after every scan.
 
 **Headers sent:**
 - \`Content-Type: application/json\`
-- \`X-SrcFile-Signature: sha256=<hmac>\` — HMAC-SHA256 of the body using \`webhook_api_key\` as the secret
+- \`X-Surface-Signature: sha256=<hmac>\` — HMAC-SHA256 of the body using \`webhook_api_key\` as the secret
 - \`X-API-Key: <webhook_api_key>\`
 
 **Payload:**
@@ -628,7 +628,7 @@ Every scan returns a \`safetyScore\` object:
 
 ## Scan Engines
 
-SrcFile uses multiple analysis engines:
+Surface uses multiple analysis engines:
 - **Malware Signatures** — Hash-based known-malware detection
 - **YARA** — Rule-based pattern matching with auto-updating rules
 - **Static Analysis** — PE header analysis, import table inspection
@@ -641,21 +641,21 @@ SrcFile uses multiple analysis engines:
 - **Detect It Easy (DiE)** — Packer/compiler detection
 - **PDF Analysis** — PDF structure and stream analysis
 `;
-server.resource("API Reference", "srcfile://docs/api-reference", { description: "Complete SrcFile REST API reference — all endpoints, request/response formats, error codes, safety score fields, and scan engines" }, () => ({
+server.resource("API Reference", "surface://docs/api-reference", { description: "Complete Surface REST API reference — all endpoints, request/response formats, error codes, safety score fields, and scan engines" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/api-reference",
+            uri: "surface://docs/api-reference",
             mimeType: "text/markdown",
             text: apiReference,
         },
     ],
 }));
 // --- Webhook Guide ---
-const webhookGuide = `# SrcFile Webhook Integration Guide
+const webhookGuide = `# Surface Webhook Integration Guide
 
 ## Overview
 
-Webhooks let your server react to scan results in real-time. When a scan profile has a webhook URL configured, SrcFile POSTs the full scan result to your endpoint immediately after analysis completes.
+Webhooks let your server react to scan results in real-time. When a scan profile has a webhook URL configured, Surface POSTs the full scan result to your endpoint immediately after analysis completes.
 
 ## Setup
 
@@ -664,7 +664,7 @@ Webhooks let your server react to scan results in real-time. When a scan profile
    POST /account/profiles
    {
      "name": "With Webhook",
-     "webhook_url": "https://your-app.com/webhooks/srcfile",
+     "webhook_url": "https://your-app.com/webhooks/surface",
      "webhook_api_key": "your-secret-key"
    }
    \`\`\`
@@ -704,36 +704,36 @@ Webhooks let your server react to scan results in real-time. When a scan profile
 
 ## Signature Verification
 
-Every webhook request includes an \`X-SrcFile-Signature\` header containing an HMAC-SHA256 signature of the request body.
+Every webhook request includes an \`X-Surface-Signature\` header containing an HMAC-SHA256 signature of the request body.
 
 ### Python
 \`\`\`python
-from srcfile import verify_webhook_signature
+from surface import verify_webhook_signature
 
 is_valid = verify_webhook_signature(
     body=request.body,
     secret="your_webhook_secret",
-    signature_header=request.headers["X-SrcFile-Signature"],
+    signature_header=request.headers["X-Surface-Signature"],
 )
 \`\`\`
 
 ### JavaScript
 \`\`\`typescript
-import { verifyWebhookSignature } from "@srcfile/sdk";
+import { verifyWebhookSignature } from "@surface/sdk";
 
 const isValid = await verifyWebhookSignature(
     requestBody,
     "your_webhook_secret",
-    request.headers["x-srcfile-signature"],
+    request.headers["x-surface-signature"],
 );
 \`\`\`
 
 ### Go
 \`\`\`go
-isValid := srcfile.VerifyWebhookSignature(
+isValid := surface.VerifyWebhookSignature(
     bodyBytes,
     "your_webhook_secret",
-    r.Header.Get("X-SrcFile-Signature"),
+    r.Header.Get("X-Surface-Signature"),
 )
 \`\`\`
 
@@ -751,31 +751,31 @@ POST /account/profiles/:id/test-webhook
 - Use the \`requestId\` to correlate webhooks with your original scan requests
 - Store the raw payload for audit trails
 `;
-server.resource("Webhook Integration Guide", "srcfile://docs/webhooks", { description: "Guide for setting up SrcFile webhook integrations — payload format, signature verification, and best practices" }, () => ({
+server.resource("Webhook Integration Guide", "surface://docs/webhooks", { description: "Guide for setting up Surface webhook integrations — payload format, signature verification, and best practices" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/webhooks",
+            uri: "surface://docs/webhooks",
             mimeType: "text/markdown",
             text: webhookGuide,
         },
     ],
 }));
 // --- SDK Quick Reference (comparison) ---
-const sdkQuickRef = `# SrcFile SDK Quick Reference
+const sdkQuickRef = `# Surface SDK Quick Reference
 
 ## Installation
 
 | Language | Install |
 |----------|---------|
-| Python | \`pip install srcfile\` |
-| JavaScript | \`npm install @srcfile/sdk\` |
-| Go | \`go get github.com/tendrl-inc-labs/srcfile-go\` |
+| Python | \`pip install surface\` |
+| JavaScript | \`npm install @surface/sdk\` |
+| Go | \`go get github.com/tendrl-inc-labs/surface-go\` |
 
 ## Authentication
 
 All SDKs check for an API key in this order:
 1. Constructor parameter (\`api_key\` / \`apiKey\`)
-2. \`SRCFILE_KEY\` environment variable
+2. \`SURFACE_KEY\` environment variable
 
 If neither is set, an \`AuthenticationError\` is raised/thrown at construction time.
 
@@ -783,7 +783,7 @@ If neither is set, an \`AuthenticationError\` is raised/thrown at construction t
 
 | SDK | Sync | Async | Batch Scanning |
 |-----|------|-------|----------------|
-| Python | \`SrcFileClient\` | \`AsyncSrcFileClient\` | \`async_client.scan_files([...])\` |
+| Python | \`SurfaceClient\` | \`AsyncSurfaceClient\` | \`async_client.scan_files([...])\` |
 | JavaScript | — | All methods are async (Promise) | \`client.scanFiles([...])\` |
 | Go | All methods are sync (blocking) | Use goroutines | \`client.ScanFiles(ctx, paths, opts, concurrency)\` |
 
@@ -792,26 +792,26 @@ If neither is set, an \`AuthenticationError\` is raised/thrown at construction t
 ### Python
 \`\`\`python
 # Sync
-client = SrcFileClient()
+client = SurfaceClient()
 result = client.scan_file("malware.exe")
 result = client.scan_file(file_bytes)
 result = client.scan_file(open("f.bin", "rb"))
 
 # Async
-async with AsyncSrcFileClient(max_concurrency=5) as client:
+async with AsyncSurfaceClient(max_concurrency=5) as client:
     results = await client.scan_files(["a.exe", "b.pdf", "c.zip"])
 \`\`\`
 
 ### JavaScript
 \`\`\`typescript
-const client = new SrcFileClient();
+const client = new SurfaceClient();
 const result = await client.scanFile(file);       // File, Blob, Buffer, ReadableStream
 const results = await client.scanFiles(files, { maxConcurrency: 5 });
 \`\`\`
 
 ### Go
 \`\`\`go
-client, _ := srcfile.NewClient("")
+client, _ := surface.NewClient("")
 result, _ := client.ScanFile(ctx, "malware.exe", nil)
 result, _ := client.ScanBytes(ctx, "sample.bin", data, nil)
 result, _ := client.ScanReader(ctx, "upload.zip", reader, nil)
@@ -827,7 +827,7 @@ results, _ := client.ScanFiles(ctx, paths, nil, 5)
 | NotFoundError | 404 | Resource not found |
 | RateLimitError | 429 | Too many requests |
 | QuotaExceededError | 429 | Monthly credits exhausted |
-| SrcFileError | * | Base error class |
+| SurfaceError | * | Base error class |
 
 ## HTTP/2
 
@@ -837,17 +837,17 @@ results, _ := client.ScanFiles(ctx, paths, nil, 5)
 | JavaScript | Automatic in browsers; pass custom \`fetch\` (undici) for Node.js |
 | Go | Automatic over TLS via \`net/http\` ALPN |
 `;
-server.resource("SDK Quick Reference", "srcfile://docs/sdk-overview", { description: "Side-by-side comparison of Python, JavaScript, and Go SDKs — installation, auth, sync/async, batch scanning, error handling" }, () => ({
+server.resource("SDK Quick Reference", "surface://docs/sdk-overview", { description: "Side-by-side comparison of Python, JavaScript, and Go SDKs — installation, auth, sync/async, batch scanning, error handling" }, () => ({
     contents: [
         {
-            uri: "srcfile://docs/sdk-overview",
+            uri: "surface://docs/sdk-overview",
             mimeType: "text/markdown",
             text: sdkQuickRef,
         },
     ],
 }));
 // --- Dynamic resource: SDK docs by language ---
-server.resource("SDK README by Language", new ResourceTemplate("srcfile://docs/sdk/{language}", { list: undefined }), { description: "SDK documentation for a specific language (python, javascript, go)" }, (uri, { language }) => {
+server.resource("SDK README by Language", new ResourceTemplate("surface://docs/sdk/{language}", { list: undefined }), { description: "SDK documentation for a specific language (python, javascript, go)" }, (uri, { language }) => {
     const lang = String(language);
     const readmePath = path.join(ROOT, `sdks/${lang}/README.md`);
     return {
@@ -863,13 +863,13 @@ server.resource("SDK README by Language", new ResourceTemplate("srcfile://docs/s
 // ===========================
 // PROMPTS
 // ===========================
-server.prompt("analyze_scan_result", "Analyze a SrcFile scan result and provide a security assessment with recommended actions.", { scan_json: z.string().describe("The JSON scan result to analyze") }, ({ scan_json }) => ({
+server.prompt("analyze_scan_result", "Analyze a Surface scan result and provide a security assessment with recommended actions.", { scan_json: z.string().describe("The JSON scan result to analyze") }, ({ scan_json }) => ({
     messages: [
         {
             role: "user",
             content: {
                 type: "text",
-                text: `Analyze this SrcFile scan result and provide:
+                text: `Analyze this Surface scan result and provide:
 1. A plain-English summary of the findings
 2. The risk level and why
 3. Recommended actions (block, quarantine, allow, investigate further)
@@ -883,7 +883,7 @@ ${scan_json}
         },
     ],
 }));
-server.prompt("generate_sdk_code", "Generate code using a SrcFile SDK for a given use case.", {
+server.prompt("generate_sdk_code", "Generate code using a Surface SDK for a given use case.", {
     language: z.enum(["python", "javascript", "go"]).describe("SDK language"),
     use_case: z.string().describe("What the code should do (e.g. 'scan all PDFs in a directory', 'set up webhook handler')"),
 }, ({ language, use_case }) => ({
@@ -892,11 +892,11 @@ server.prompt("generate_sdk_code", "Generate code using a SrcFile SDK for a give
             role: "user",
             content: {
                 type: "text",
-                text: `Generate ${language} code using the SrcFile ${language} SDK for the following use case:
+                text: `Generate ${language} code using the Surface ${language} SDK for the following use case:
 
 ${use_case}
 
-Use the official SDK patterns (proper imports, error handling, auth via SRCFILE_KEY env var). Include brief comments explaining each step. Make the code production-ready.`,
+Use the official SDK patterns (proper imports, error handling, auth via SURFACE_KEY env var). Include brief comments explaining each step. Make the code production-ready.`,
             },
         },
     ],

@@ -1,11 +1,11 @@
 {
-  "name": "@srcfile/mcp-server",
+  "name": "@surface/mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for SrcFile — exposes file scanning API, SDK docs, and user documentation",
+  "description": "MCP server for Surface — exposes file scanning API, SDK docs, and user documentation",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "srcfile-mcp": "dist/index.js"
+    "surface-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

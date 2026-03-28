@@ -1,6 +1,6 @@
-# SrcFile MCP Server
+# Surface MCP Server
 
-Model Context Protocol server for [SrcFile](https://srcfile.io). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
+Model Context Protocol server for [Surface](https://surface.io). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
 
 ## Setup
 
@@ -15,25 +15,25 @@ npm run build
 Set your API key:
 
 ```bash
-export SRCFILE_KEY="sfk_xxx.secret"
+export SURFACE_KEY="sfk_xxx.secret"
 ```
 
 ### Optional: Local Scanner
 
-Point `SRCFILE_SCANNER_PATH` at the SrcFile scanner binary to scan files locally. Files never leave your machine — the binary runs on your hardware and reports results to the server.
+Point `SURFACE_SCANNER_PATH` at the Surface scanner binary to scan files locally. Files never leave your machine — the binary runs on your hardware and reports results to the server.
 
 ```bash
-export SRCFILE_SCANNER_PATH="/usr/local/bin/srcfile-scanner"
+export SURFACE_SCANNER_PATH="/usr/local/bin/surface-scanner"
 ```
 
 When this is not set, `scan_file` uploads to the API instead.
 
 ### Optional: Custom API URL
 
-Set a custom base URL (defaults to `https://api.srcfile.io`). For a local deployment of the open-source backend, include the `/api` path:
+Set a custom base URL (defaults to `https://api.surface.io`). For a local deployment of the open-source backend, include the `/api` path:
 
 ```bash
-export SRCFILE_BASE_URL="http://localhost:9080/api"
+export SURFACE_BASE_URL="http://localhost:9080/api"
 ```
 
 ## Usage with Claude Desktop
@@ -43,11 +43,11 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 ```json
 {
   "mcpServers": {
-    "srcfile": {
+    "surface": {
       "command": "node",
-      "args": ["/path/to/srcfile/mcp-server/dist/index.js"],
+      "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SRCFILE_KEY": "sfk_xxx.secret"
+        "SURFACE_KEY": "sfk_xxx.secret"
       }
     }
   }
@@ -59,12 +59,12 @@ With local scanner (files never leave your machine):
 ```json
 {
   "mcpServers": {
-    "srcfile": {
+    "surface": {
       "command": "node",
-      "args": ["/path/to/srcfile/mcp-server/dist/index.js"],
+      "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SRCFILE_KEY": "sfk_xxx.secret",
-        "SRCFILE_SCANNER_PATH": "/usr/local/bin/srcfile-scanner"
+        "SURFACE_KEY": "sfk_xxx.secret",
+        "SURFACE_SCANNER_PATH": "/usr/local/bin/surface-scanner"
       }
     }
   }
@@ -77,10 +77,10 @@ Add to your Claude Code settings:
 
 ```bash
 # API mode (uploads to server)
-claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE_KEY=sfk_xxx.secret
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_xxx.secret
 
 # Local scanner mode (files stay on your machine)
-claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE_KEY=sfk_xxx.secret -e SRCFILE_SCANNER_PATH=/usr/local/bin/srcfile-scanner
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_xxx.secret -e SURFACE_SCANNER_PATH=/usr/local/bin/surface-scanner
 ```
 
 ## Tools
@@ -107,17 +107,17 @@ claude mcp add srcfile node /path/to/srcfile/mcp-server/dist/index.js -e SRCFILE
 
 | Resource | URI | Description |
 |----------|-----|-------------|
-| API Reference | `srcfile://docs/api-reference` | Complete REST API documentation |
-| SDK Quick Reference | `srcfile://docs/sdk-overview` | Side-by-side SDK comparison |
-| Webhook Guide | `srcfile://docs/webhooks` | Webhook setup and signature verification |
-| Python SDK Docs | `srcfile://docs/sdk/python` | Python SDK README |
-| JavaScript SDK Docs | `srcfile://docs/sdk/javascript` | JS/TS SDK README |
-| Go SDK Docs | `srcfile://docs/sdk/go` | Go SDK README |
-| SDK Source Files | `srcfile://src/sdk/{lang}/*` | SDK source code (client, models, errors, webhook) |
+| API Reference | `surface://docs/api-reference` | Complete REST API documentation |
+| SDK Quick Reference | `surface://docs/sdk-overview` | Side-by-side SDK comparison |
+| Webhook Guide | `surface://docs/webhooks` | Webhook setup and signature verification |
+| Python SDK Docs | `surface://docs/sdk/python` | Python SDK README |
+| JavaScript SDK Docs | `surface://docs/sdk/javascript` | JS/TS SDK README |
+| Go SDK Docs | `surface://docs/sdk/go` | Go SDK README |
+| SDK Source Files | `surface://src/sdk/{lang}/*` | SDK source code (client, models, errors, webhook) |
 
 ## Agentic Security
 
-The `scan_payload` tool is designed for AI agent workflows. When an agent scans a payload, SrcFile automatically detects:
+The `scan_payload` tool is designed for AI agent workflows. When an agent scans a payload, Surface automatically detects:
 
 - **Prompt injection** — jailbreak attempts, role hijacking, instruction overrides
 - **SQL injection** — union attacks, tautology auth bypass, blind injection
