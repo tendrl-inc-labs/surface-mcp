@@ -15,7 +15,7 @@ npm run build
 Set your API key:
 
 ```bash
-export SURFACE_KEY="sfk_xxx.secret"
+export SURFACE_KEY="sfk_your_token_here"
 ```
 
 ### Optional: Local Scanner
@@ -47,7 +47,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "command": "node",
       "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SURFACE_KEY": "sfk_xxx.secret"
+        "SURFACE_KEY": "sfk_your_token_here"
       }
     }
   }
@@ -63,7 +63,7 @@ With local scanner (files never leave your machine):
       "command": "node",
       "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SURFACE_KEY": "sfk_xxx.secret",
+        "SURFACE_KEY": "sfk_your_token_here",
         "SURFACE_SCANNER_PATH": "/usr/local/bin/surface-scanner"
       }
     }
@@ -77,10 +77,10 @@ Add to your Claude Code settings:
 
 ```bash
 # API mode (uploads to server)
-claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_xxx.secret
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_your_token_here
 
 # Local scanner mode (files stay on your machine)
-claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_xxx.secret -e SURFACE_SCANNER_PATH=/usr/local/bin/surface-scanner
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_your_token_here -e SURFACE_SCANNER_PATH=/usr/local/bin/surface-scanner
 ```
 
 ## Tools

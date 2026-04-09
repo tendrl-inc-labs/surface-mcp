@@ -497,7 +497,7 @@ server.tool(
 // --- Create API Key ---
 server.tool(
   "create_api_key",
-  "Create a new API key, optionally linked to a scan profile.",
+  "Create a new API key. Returns api_key_id (stable identifier, always visible) and token (the Bearer secret — shown once, store it immediately).",
   {
     label: z.string().describe("Human-readable label for the key"),
     profile_id: z
@@ -516,9 +516,9 @@ server.tool(
 // --- Delete API Key ---
 server.tool(
   "delete_api_key",
-  "Delete an API key by ID.",
+  "Delete an API key by its internal id (the 'id' field from list_api_keys, not the api_key_id).",
   {
-    key_id: z.string().describe("API key ID to delete"),
+    key_id: z.string().describe("Internal key id to delete (the 'id' field from list_api_keys)"),
   },
   async ({ key_id }) => {
     await apiRequest(
@@ -819,19 +819,24 @@ Send a test webhook payload to the profile's configured URL.
 
 ## API Keys
 
-Keys are linked to scan profiles and inherit their settings.
+Each key has two fields:
+- \`api_key_id\` — stable UUID, always visible, used to identify the key
+- \`token\` — the Bearer secret (returned once at creation, never retrievable again)
+
+Use \`Authorization: Bearer <token>\` to authenticate requests.
 
 ### GET /account/keys
-List all API keys.
+List all API keys. Returns \`api_key_id\`, \`role_name\`, \`label\`, \`profile_id\`, timestamps — never the token.
 
 ### POST /account/keys
-Create a key. Body: \`{"label": "Production", "profile_id": "uuid"}\`
+Create a key. Body: \`{"label": "Production", "role_name": "scanner", "profile_id": "uuid"}\`
+Response includes \`api_key_id\` and \`token\` (shown once — store it immediately).
 
-### PUT /account/keys/:id
-Update a key.
+### PATCH /account/keys/:id/profile
+Assign or unassign a scan profile. Body: \`{"profile_id": "uuid"}\` (empty string to unassign).
 
 ### DELETE /account/keys/:id
-Delete a key.
+Revoke a key by its internal \`id\` (not \`api_key_id\`).
 
 ---
 
