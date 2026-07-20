@@ -125,7 +125,7 @@ The `scan_payload` tool is designed for AI agent workflows. When an agent scans 
 - **Credential exposure** — API keys, tokens, private keys, connection strings
 - **Malicious code** — reverse shells, download cradles, eval/exec chains
 - **Suspicious tool calls** — dangerous execute/write/http operations
-- **Known malicious URLs** — checked against URLhaus and OpenPhish feeds
+- **Known malicious URLs** — checked against threat intelligence feeds
 
 Results include `promptInjection`, `codeExtraction`, `sensitiveData`, and `toolCallAnalysis` fields with detailed findings.
 

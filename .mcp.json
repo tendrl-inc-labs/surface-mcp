@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "surface": {
+      "url": "${SURFACE_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${SURFACE_SESSION_TOKEN}"
+      }
+    }
+  }
+}

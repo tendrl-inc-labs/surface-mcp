@@ -6,6 +6,7 @@ import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
+import { SCAN_RESULT_APP_HTML } from "./scanResultApp.js";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -185,7 +186,7 @@ const server = new McpServer({
 // ===========================
 
 // --- Scan File ---
-server.tool(
+const scanFileTool = server.tool(
   "scan_file",
   "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SURFACE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the Surface API.",
   {
@@ -242,7 +243,7 @@ server.tool(
 );
 
 // --- Scan Payload ---
-server.tool(
+const scanPayloadTool = server.tool(
   "scan_payload",
   "Scan a raw string or payload for malware without file upload. Content type is auto-detected from bytes. Useful for scanning API request/response bodies, form inputs, agent messages, or any text content inline. When SURFACE_SCANNER_PATH is set, scans locally via stdin. Otherwise sends to the Surface API.",
   {
@@ -346,6 +347,109 @@ server.tool(
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
+  },
+);
+
+// Scan one text payload and return the parsed result. Shared by scan_bundle.
+// Honors SURFACE_SCANNER_PATH: when set, scans locally via the scanner binary
+// (content never leaves the machine); otherwise POSTs to the Surface API.
+async function scanOnePayload(payload: string, label?: string): Promise<any> {
+  const scannerPath = getScannerPath();
+  if (scannerPath) {
+    // Local scan — piped via stdin, nothing leaves the machine.
+    return new Promise((resolve, reject) => {
+      const child = execFile(
+        scannerPath,
+        ["--stdin", "--label", label ?? "payload.bin", "--format", "json", "--api-key", getApiKey()],
+        { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
+        (error, stdout) => {
+          const output = stdout?.trim();
+          if (!output) {
+            return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));
+          }
+          try {
+            resolve(JSON.parse(output));
+          } catch {
+            reject(new Error(`Invalid scanner output: ${output}`));
+          }
+        },
+      );
+      child.stdin?.write(Buffer.from(payload, "utf-8"));
+      child.stdin?.end();
+    });
+  }
+
+  // API mode: POST JSON to /scan/payload.
+  const resp = await fetch(`${getBaseUrl()}/scan/payload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ payload, label: label || undefined }),
+  });
+  if (!resp.ok) {
+    let errorBody: string;
+    try {
+      errorBody = JSON.stringify(await resp.json());
+    } catch {
+      errorBody = await resp.text();
+    }
+    throw new Error(`HTTP ${resp.status}: ${errorBody}`);
+  }
+  return resp.json();
+}
+
+// --- Scan Bundle (pre-deploy safety gate) ---
+server.tool(
+  "scan_bundle",
+  "Scan multiple payloads (e.g. main.py, boot.py, config.json) in ONE call and return an aggregate go/no-go verdict before deploying to a device. Reports each item plus an overall `deploy_safe` flag — false if ANY item is malicious/suspicious (score ≤70), is flagged for prompt injection, or has recommendedAction=Block. Run before flash_micropython / provision_device / upload_file. When SURFACE_SCANNER_PATH is set, every item is scanned locally — content never leaves the machine.",
+  {
+    items: z
+      .array(
+        z.object({
+          content: z.string().describe("The content to scan (code, config, message, etc.)"),
+          label: z.string().optional().describe('Label for the item, e.g. "main.py"'),
+        }),
+      )
+      .describe("The payloads to scan before deployment"),
+  },
+  async ({ items }) => {
+    const results = await Promise.all(
+      items.map(async (it) => {
+        try {
+          const r = await scanOnePayload(it.content, it.label);
+          const sc = r.safetyScore ?? {};
+          const inj = r.promptInjection ?? {};
+          return {
+            label: it.label ?? "(unnamed)",
+            score: sc.score,
+            threatLevel: sc.threatLevel,
+            recommendedAction: sc.recommendedAction,
+            promptInjection: inj.detected === true ? (inj.risk ?? "detected") : false,
+            primaryThreat: sc.primaryThreat,
+          };
+        } catch (e: any) {
+          return { label: it.label ?? "(unnamed)", error: String(e?.message ?? e) };
+        }
+      }),
+    );
+
+    const unsafe = results.filter(
+      (r: any) =>
+        r.error ||
+        (typeof r.score === "number" && r.score <= 70) ||
+        r.promptInjection ||
+        (r.recommendedAction && String(r.recommendedAction).toLowerCase() === "block"),
+    );
+    const deploySafe = unsafe.length === 0;
+    const summary = {
+      deploy_safe: deploySafe,
+      verdict: deploySafe ? "SAFE to deploy" : "DO NOT deploy",
+      blocked_by: unsafe.map((r: any) => r.label),
+      items: results,
+    };
+    return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
   },
 );
 
@@ -552,7 +656,7 @@ server.tool(
 );
 
 // --- Get Scan Detail ---
-server.tool(
+const scanDetailTool = server.tool(
   "get_scan_detail",
   "Get full details of a specific historical scan by its ID.",
   {
@@ -1173,6 +1277,55 @@ server.resource(
 );
 
 // ===========================
+// RESOURCES — Claude Code Skills
+// ===========================
+
+function discoverSkillResources(): Array<{ name: string; uri: string; filePath: string }> {
+  const candidates = [
+    path.join(ROOT, ".claude", "skills"),
+    path.join(ROOT, "skills"),
+    path.join(ROOT, "mcp-server", "skills"),
+  ];
+  const envDir = process.env.SURFACE_SKILLS_DIR;
+  if (envDir) candidates.unshift(envDir);
+
+  const skills: Array<{ name: string; uri: string; filePath: string }> = [];
+  for (const dir of candidates) {
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillFile = path.join(dir, entry.name, "SKILL.md");
+      if (fs.existsSync(skillFile)) {
+        skills.push({
+          name: entry.name,
+          uri: `surface://skills/${entry.name}`,
+          filePath: skillFile,
+        });
+      }
+    }
+    if (skills.length > 0) break; // use first directory that has skills
+  }
+  return skills;
+}
+
+for (const skill of discoverSkillResources()) {
+  server.resource(
+    `Skill: ${skill.name}`,
+    skill.uri,
+    { description: `Claude Code skill: ${skill.name}`, mimeType: "text/markdown" },
+    () => ({
+      contents: [
+        {
+          uri: skill.uri,
+          mimeType: "text/markdown",
+          text: readFileResource(skill.filePath),
+        },
+      ],
+    }),
+  );
+}
+
+// ===========================
 // PROMPTS
 // ===========================
 
@@ -1225,6 +1378,47 @@ Use the official SDK patterns (proper imports, error handling, auth via SURFACE_
     ],
   }),
 );
+
+// ===========================
+// MCP APP — Interactive scan-result card (additive)
+// ===========================
+//
+// Serves a self-contained HTML "app" as a `ui://` resource and links the
+// scan-producing tools to it via `_meta.ui.resourceUri`. Hosts that support the
+// MCP Apps extension render the card in a sandboxed iframe and push the tool
+// result to it; hosts that don't simply ignore `_meta.ui` and show the existing
+// text result. Nothing about the tools' text output changes — this is purely
+// additive.
+
+const SCAN_RESULT_UI_URI = "ui://surface/scan-result";
+const SCAN_APP_MIME = "text/html;profile=mcp-app";
+
+server.registerResource(
+  "Scan Result App",
+  SCAN_RESULT_UI_URI,
+  {
+    description:
+      "Interactive card that renders a Surface scan verdict (score, threat level, engines, IOCs) with a proceed/block gate.",
+    mimeType: SCAN_APP_MIME,
+    _meta: { ui: { prefersBorder: true } },
+  },
+  () => ({
+    contents: [
+      {
+        uri: SCAN_RESULT_UI_URI,
+        mimeType: SCAN_APP_MIME,
+        text: SCAN_RESULT_APP_HTML,
+        _meta: { ui: { prefersBorder: true } },
+      },
+    ],
+  }),
+);
+
+// Link scan tools to the card. `update` only sets `_meta`, leaving each tool's
+// schema and handler untouched (see RegisteredTool.update — partial merge).
+for (const tool of [scanFileTool, scanPayloadTool, scanDetailTool]) {
+  tool.update({ _meta: { ui: { resourceUri: SCAN_RESULT_UI_URI } } });
+}
 
 // ===========================
 // Start server

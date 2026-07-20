@@ -1,0 +1,14 @@
+{
+  "name": "tendrl-surface",
+  "version": "0.1.0",
+  "description": "Malware scanning, threat detection, and payload analysis via the Surface MCP server",
+  "author": {
+    "name": "Tendrl",
+    "url": "https://github.com/tendrl-inc"
+  },
+  "repository": "https://github.com/tendrl-inc/tendrl-surface",
+  "license": "MIT",
+  "keywords": ["security", "malware", "scanning", "surface"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

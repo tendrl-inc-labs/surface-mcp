@@ -1,0 +1,60 @@
+{
+  "manifest_version": "0.3",
+  "name": "surface",
+  "display_name": "Surface Security Scanner",
+  "version": "1.0.0",
+  "description": "Scan files and payloads for malware and prompt-injection threats using the Surface API.",
+  "long_description": "Surface Security Scanner is a Model Context Protocol server that lets your AI assistant scan files and text payloads for malware, IOCs, and prompt-injection attacks through the Surface API. On clients that support the MCP Apps extension, scan results render as an interactive card with a proceed/block gate; everywhere else the same results appear as text. Configure your Surface API key and (optionally) a custom base URL to point at a self-hosted or local Surface instance.",
+  "author": {
+    "name": "Tendrl",
+    "email": "hunter@tendrl.com",
+    "url": "https://tendrl.com"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "SURFACE_KEY": "${user_config.surface_key}",
+        "SURFACE_BASE_URL": "${user_config.surface_base_url}"
+      }
+    }
+  },
+  "user_config": {
+    "surface_key": {
+      "type": "string",
+      "title": "Surface API Key",
+      "description": "Your Surface API key. Stored securely in the OS keychain, never in plaintext config.",
+      "sensitive": true,
+      "required": true
+    },
+    "surface_base_url": {
+      "type": "string",
+      "title": "Surface Base URL",
+      "description": "Surface API base URL. Override to point at a local or self-hosted instance, e.g. http://localhost:8085/api",
+      "default": "https://api.surface.io",
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "scan_file", "description": "Scan a file for malware and threats." },
+    { "name": "scan_payload", "description": "Scan a raw text or binary payload for threats." },
+    { "name": "get_scan", "description": "Poll a deferred scan by ID." },
+    { "name": "get_scan_history", "description": "List previous scans." },
+    { "name": "get_scan_detail", "description": "Get full findings for a historical scan." },
+    { "name": "get_account", "description": "Get account information." },
+    { "name": "get_usage", "description": "Get scan usage and quota." },
+    { "name": "get_plans", "description": "List billing plans and limits." },
+    { "name": "list_profiles", "description": "List scan profiles." },
+    { "name": "create_profile", "description": "Create a scan profile." },
+    { "name": "update_profile", "description": "Update a scan profile." },
+    { "name": "delete_profile", "description": "Delete a scan profile." },
+    { "name": "list_api_keys", "description": "List API keys." },
+    { "name": "create_api_key", "description": "Create an API key." },
+    { "name": "delete_api_key", "description": "Delete an API key." }
+  ],
+  "keywords": ["security", "malware", "scanning", "prompt-injection", "surface"],
+  "license": "UNLICENSED"
+}

@@ -5,6 +5,7 @@ import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
+import { SCAN_RESULT_APP_HTML } from "./scanResultApp.js";
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -30,13 +31,13 @@ function getScannerPath() {
  * Run the local scanner binary on a file and return parsed JSON output.
  * The binary is invoked with `--format json --api-key <key> <file>`.
  * The API key allows the binary to report results to the server and
- * validate credits.
+ * validate monthly scan quota.
  */
 async function localScan(scannerPath, filePath) {
     const apiKey = getApiKey();
     return new Promise((resolve, reject) => {
         const args = ["--format", "json"];
-        // Pass API key so the binary can report results and validate credits
+        // Pass API key so the binary can report results and respect server quota
         args.push("--api-key", apiKey);
         args.push(filePath);
         execFile(scannerPath, args, { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout, _stderr) => {
@@ -134,7 +135,7 @@ const server = new McpServer({
 // TOOLS — API Operations
 // ===========================
 // --- Scan File ---
-server.tool("scan_file", "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SURFACE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the Surface API.", {
+const scanFileTool = server.tool("scan_file", "Scan a file for malware. Returns safety score, threat level, IOCs, YARA matches, and engine results. Accepts an absolute file path. When SURFACE_SCANNER_PATH is set, scans locally using the binary (files never leave your machine). Otherwise uploads to the Surface API.", {
     file_path: z.string().describe("Absolute path to the file to scan"),
     defer: z
         .boolean()
@@ -148,7 +149,7 @@ server.tool("scan_file", "Scan a file for malware. Returns safety score, threat 
     const scannerPath = getScannerPath();
     // Local scanner mode: shell out to the binary instead of calling the API.
     // Files are scanned locally and never uploaded. The API key is still passed
-    // so the binary can report results to the server and validate credits.
+    // so the binary can report results to the server and respect server quota.
     if (scannerPath) {
         if (deferScan) {
             return {
@@ -180,6 +181,174 @@ server.tool("scan_file", "Scan a file for malware. Returns safety score, threat 
         ],
     };
 });
+// --- Scan Payload ---
+const scanPayloadTool = server.tool("scan_payload", "Scan a raw string or payload for malware without file upload. Content type is auto-detected from bytes. Useful for scanning API request/response bodies, form inputs, agent messages, or any text content inline. When SURFACE_SCANNER_PATH is set, scans locally via stdin. Otherwise sends to the Surface API.", {
+    payload: z
+        .string()
+        .describe("The content to scan. Can be raw text/code or base64-encoded binary data."),
+    label: z
+        .string()
+        .optional()
+        .describe('Optional label for the payload (e.g. "api-request", "agent-message.json"). Content type is auto-detected.'),
+    defer: z
+        .boolean()
+        .optional()
+        .describe("If true, returns immediately with a scan ID for polling."),
+}, async ({ payload, label, defer: deferScan }) => {
+    const scannerPath = getScannerPath();
+    // Local scanner mode: pipe via stdin (always raw bytes)
+    if (scannerPath) {
+        const rawContent = Buffer.from(payload, "utf-8");
+        return new Promise((resolve, reject) => {
+            const args = [
+                "--stdin",
+                "--label",
+                label ?? "payload.bin",
+                "--format",
+                "json",
+                "--api-key",
+                getApiKey(),
+            ];
+            const child = execFile(scannerPath, args, { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout, _stderr) => {
+                const output = stdout?.trim();
+                if (!output) {
+                    return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));
+                }
+                try {
+                    const result = JSON.parse(output);
+                    resolve({
+                        content: [
+                            { type: "text", text: JSON.stringify(result, null, 2) },
+                        ],
+                    });
+                }
+                catch {
+                    reject(new Error(`Invalid scanner output: ${output}`));
+                }
+            });
+            // Write payload to stdin
+            child.stdin?.write(rawContent);
+            child.stdin?.end();
+        });
+    }
+    // API mode: POST JSON to /scan/payload
+    const params = {};
+    if (deferScan)
+        params.defer = "true";
+    // Send raw — the API accepts raw text payloads by default (no base64 needed for text)
+    const body = JSON.stringify({ payload, label: label || undefined });
+    const query = Object.keys(params).length
+        ? "?" + new URLSearchParams(params).toString()
+        : "";
+    const url = `${getBaseUrl()}/scan/payload${query}`;
+    const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${getApiKey()}`,
+            "Content-Type": "application/json",
+        },
+        body,
+    });
+    if (!resp.ok) {
+        let errorBody;
+        try {
+            errorBody = JSON.stringify(await resp.json());
+        }
+        catch {
+            errorBody = await resp.text();
+        }
+        throw new Error(`HTTP ${resp.status}: ${errorBody}`);
+    }
+    const result = await resp.json();
+    return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+});
+// Scan one text payload and return the parsed result. Shared by scan_bundle.
+// Honors SURFACE_SCANNER_PATH: when set, scans locally via the scanner binary
+// (content never leaves the machine); otherwise POSTs to the Surface API.
+async function scanOnePayload(payload, label) {
+    const scannerPath = getScannerPath();
+    if (scannerPath) {
+        // Local scan — piped via stdin, nothing leaves the machine.
+        return new Promise((resolve, reject) => {
+            const child = execFile(scannerPath, ["--stdin", "--label", label ?? "payload.bin", "--format", "json", "--api-key", getApiKey()], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout) => {
+                const output = stdout?.trim();
+                if (!output) {
+                    return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));
+                }
+                try {
+                    resolve(JSON.parse(output));
+                }
+                catch {
+                    reject(new Error(`Invalid scanner output: ${output}`));
+                }
+            });
+            child.stdin?.write(Buffer.from(payload, "utf-8"));
+            child.stdin?.end();
+        });
+    }
+    // API mode: POST JSON to /scan/payload.
+    const resp = await fetch(`${getBaseUrl()}/scan/payload`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${getApiKey()}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ payload, label: label || undefined }),
+    });
+    if (!resp.ok) {
+        let errorBody;
+        try {
+            errorBody = JSON.stringify(await resp.json());
+        }
+        catch {
+            errorBody = await resp.text();
+        }
+        throw new Error(`HTTP ${resp.status}: ${errorBody}`);
+    }
+    return resp.json();
+}
+// --- Scan Bundle (pre-deploy safety gate) ---
+server.tool("scan_bundle", "Scan multiple payloads (e.g. main.py, boot.py, config.json) in ONE call and return an aggregate go/no-go verdict before deploying to a device. Reports each item plus an overall `deploy_safe` flag — false if ANY item is malicious/suspicious (score ≤70), is flagged for prompt injection, or has recommendedAction=Block. Run before flash_micropython / provision_device / upload_file. When SURFACE_SCANNER_PATH is set, every item is scanned locally — content never leaves the machine.", {
+    items: z
+        .array(z.object({
+        content: z.string().describe("The content to scan (code, config, message, etc.)"),
+        label: z.string().optional().describe('Label for the item, e.g. "main.py"'),
+    }))
+        .describe("The payloads to scan before deployment"),
+}, async ({ items }) => {
+    const results = await Promise.all(items.map(async (it) => {
+        try {
+            const r = await scanOnePayload(it.content, it.label);
+            const sc = r.safetyScore ?? {};
+            const inj = r.promptInjection ?? {};
+            return {
+                label: it.label ?? "(unnamed)",
+                score: sc.score,
+                threatLevel: sc.threatLevel,
+                recommendedAction: sc.recommendedAction,
+                promptInjection: inj.detected === true ? (inj.risk ?? "detected") : false,
+                primaryThreat: sc.primaryThreat,
+            };
+        }
+        catch (e) {
+            return { label: it.label ?? "(unnamed)", error: String(e?.message ?? e) };
+        }
+    }));
+    const unsafe = results.filter((r) => r.error ||
+        (typeof r.score === "number" && r.score <= 70) ||
+        r.promptInjection ||
+        (r.recommendedAction && String(r.recommendedAction).toLowerCase() === "block"));
+    const deploySafe = unsafe.length === 0;
+    const summary = {
+        deploy_safe: deploySafe,
+        verdict: deploySafe ? "SAFE to deploy" : "DO NOT deploy",
+        blocked_by: unsafe.map((r) => r.label),
+        items: results,
+    };
+    return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
+});
 // --- Get Scan (poll deferred) ---
 server.tool("get_scan", "Poll the status/result of a deferred scan by scan ID.", {
     scan_id: z.string().describe("The scan ID returned from a deferred scan"),
@@ -197,7 +366,7 @@ server.tool("get_account", "Get the current account details including plan, emai
     };
 });
 // --- Get Usage ---
-server.tool("get_usage", "Get current credit usage for the account (credits used, monthly limit, reset date).", {}, async () => {
+server.tool("get_usage", "Get current scan usage for the account (used vs monthly limit, reset date; response may use legacy credits_* JSON field names).", {}, async () => {
     const result = await apiRequest("GET", "/account/usage");
     return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -271,7 +440,7 @@ server.tool("list_api_keys", "List all API keys for the account.", {}, async () 
     };
 });
 // --- Create API Key ---
-server.tool("create_api_key", "Create a new API key, optionally linked to a scan profile.", {
+server.tool("create_api_key", "Create a new API key. Returns api_key_id (stable identifier, always visible) and token (the Bearer secret — shown once, store it immediately).", {
     label: z.string().describe("Human-readable label for the key"),
     profile_id: z
         .string()
@@ -284,8 +453,8 @@ server.tool("create_api_key", "Create a new API key, optionally linked to a scan
     };
 });
 // --- Delete API Key ---
-server.tool("delete_api_key", "Delete an API key by ID.", {
-    key_id: z.string().describe("API key ID to delete"),
+server.tool("delete_api_key", "Delete an API key by its internal id (the 'id' field from list_api_keys, not the api_key_id).", {
+    key_id: z.string().describe("Internal key id to delete (the 'id' field from list_api_keys)"),
 }, async ({ key_id }) => {
     await apiRequest("DELETE", `/account/keys/${encodeURIComponent(key_id)}`);
     return {
@@ -309,7 +478,7 @@ server.tool("get_scan_history", "Get paginated scan history for the account.", {
     };
 });
 // --- Get Scan Detail ---
-server.tool("get_scan_detail", "Get full details of a specific historical scan by its ID.", {
+const scanDetailTool = server.tool("get_scan_detail", "Get full details of a specific historical scan by its ID.", {
     scan_id: z.string().describe("Scan history entry ID"),
 }, async ({ scan_id }) => {
     const result = await apiRequest("GET", `/account/history/${encodeURIComponent(scan_id)}`);
@@ -318,7 +487,7 @@ server.tool("get_scan_detail", "Get full details of a specific historical scan b
     };
 });
 // --- Get Billing Plans ---
-server.tool("get_plans", "Get available billing plans and credit tiers.", {}, async () => {
+server.tool("get_plans", "Get available billing plans and scan limits.", {}, async () => {
     const result = await apiRequest("GET", "/billing/plans");
     return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -472,7 +641,7 @@ Poll the result of a deferred scan.
 Get account details (email, plan, settings, scan counts).
 
 ### GET /account/usage
-Get credit usage.
+Scan usage vs monthly allowance. Field names may still use \`credits_*\` / \`monthly_credits\` for API compatibility.
 \`\`\`json
 {
   "credits_used": 45,
@@ -539,26 +708,31 @@ Send a test webhook payload to the profile's configured URL.
 
 ## API Keys
 
-Keys are linked to scan profiles and inherit their settings.
+Each key has two fields:
+- \`api_key_id\` — stable UUID, always visible, used to identify the key
+- \`token\` — the Bearer secret (returned once at creation, never retrievable again)
+
+Use \`Authorization: Bearer <token>\` to authenticate requests.
 
 ### GET /account/keys
-List all API keys.
+List all API keys. Returns \`api_key_id\`, \`role_name\`, \`label\`, \`profile_id\`, timestamps — never the token.
 
 ### POST /account/keys
-Create a key. Body: \`{"label": "Production", "profile_id": "uuid"}\`
+Create a key. Body: \`{"label": "Production", "role_name": "scanner", "profile_id": "uuid"}\`
+Response includes \`api_key_id\` and \`token\` (shown once — store it immediately).
 
-### PUT /account/keys/:id
-Update a key.
+### PATCH /account/keys/:id/profile
+Assign or unassign a scan profile. Body: \`{"profile_id": "uuid"}\` (empty string to unassign).
 
 ### DELETE /account/keys/:id
-Delete a key.
+Revoke a key by its internal \`id\` (not \`api_key_id\`).
 
 ---
 
 ## Billing
 
 ### GET /billing/plans
-Get available plans and credit tiers (public endpoint, no auth required).
+Get available plans and scan limits (public endpoint, no auth required).
 
 ---
 
@@ -606,7 +780,7 @@ All errors return JSON: \`{"error": "message", "requestId": "uuid"}\`
 | 401 | AuthenticationError | Invalid or missing API key |
 | 404 | NotFoundError | Resource not found |
 | 429 | RateLimitError | Too many requests (has Retry-After header) |
-| 429 | QuotaExceededError | Monthly credit quota exhausted |
+| 429 | QuotaExceededError | Monthly scan quota exhausted |
 
 ---
 
@@ -826,7 +1000,7 @@ results, _ := client.ScanFiles(ctx, paths, nil, 5)
 | ValidationError | 400 | Invalid request |
 | NotFoundError | 404 | Resource not found |
 | RateLimitError | 429 | Too many requests |
-| QuotaExceededError | 429 | Monthly credits exhausted |
+| QuotaExceededError | 429 | Monthly scan quota exhausted |
 | SurfaceError | * | Base error class |
 
 ## HTTP/2
@@ -860,6 +1034,50 @@ server.resource("SDK README by Language", new ResourceTemplate("surface://docs/s
         ],
     };
 });
+// ===========================
+// RESOURCES — Claude Code Skills
+// ===========================
+function discoverSkillResources() {
+    const candidates = [
+        path.join(ROOT, ".claude", "skills"),
+        path.join(ROOT, "skills"),
+        path.join(ROOT, "mcp-server", "skills"),
+    ];
+    const envDir = process.env.SURFACE_SKILLS_DIR;
+    if (envDir)
+        candidates.unshift(envDir);
+    const skills = [];
+    for (const dir of candidates) {
+        if (!fs.existsSync(dir))
+            continue;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (!entry.isDirectory())
+                continue;
+            const skillFile = path.join(dir, entry.name, "SKILL.md");
+            if (fs.existsSync(skillFile)) {
+                skills.push({
+                    name: entry.name,
+                    uri: `surface://skills/${entry.name}`,
+                    filePath: skillFile,
+                });
+            }
+        }
+        if (skills.length > 0)
+            break; // use first directory that has skills
+    }
+    return skills;
+}
+for (const skill of discoverSkillResources()) {
+    server.resource(`Skill: ${skill.name}`, skill.uri, { description: `Claude Code skill: ${skill.name}`, mimeType: "text/markdown" }, () => ({
+        contents: [
+            {
+                uri: skill.uri,
+                mimeType: "text/markdown",
+                text: readFileResource(skill.filePath),
+            },
+        ],
+    }));
+}
 // ===========================
 // PROMPTS
 // ===========================
@@ -901,6 +1119,37 @@ Use the official SDK patterns (proper imports, error handling, auth via SURFACE_
         },
     ],
 }));
+// ===========================
+// MCP APP — Interactive scan-result card (additive)
+// ===========================
+//
+// Serves a self-contained HTML "app" as a `ui://` resource and links the
+// scan-producing tools to it via `_meta.ui.resourceUri`. Hosts that support the
+// MCP Apps extension render the card in a sandboxed iframe and push the tool
+// result to it; hosts that don't simply ignore `_meta.ui` and show the existing
+// text result. Nothing about the tools' text output changes — this is purely
+// additive.
+const SCAN_RESULT_UI_URI = "ui://surface/scan-result";
+const SCAN_APP_MIME = "text/html;profile=mcp-app";
+server.registerResource("Scan Result App", SCAN_RESULT_UI_URI, {
+    description: "Interactive card that renders a Surface scan verdict (score, threat level, engines, IOCs) with a proceed/block gate.",
+    mimeType: SCAN_APP_MIME,
+    _meta: { ui: { prefersBorder: true } },
+}, () => ({
+    contents: [
+        {
+            uri: SCAN_RESULT_UI_URI,
+            mimeType: SCAN_APP_MIME,
+            text: SCAN_RESULT_APP_HTML,
+            _meta: { ui: { prefersBorder: true } },
+        },
+    ],
+}));
+// Link scan tools to the card. `update` only sets `_meta`, leaving each tool's
+// schema and handler untouched (see RegisteredTool.update — partial merge).
+for (const tool of [scanFileTool, scanPayloadTool, scanDetailTool]) {
+    tool.update({ _meta: { ui: { resourceUri: SCAN_RESULT_UI_URI } } });
+}
 // ===========================
 // Start server
 // ===========================
