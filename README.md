@@ -1,6 +1,6 @@
 # Surface MCP Server
 
-Model Context Protocol server for [Surface](https://surface.io). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
+Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/overview/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
 
 ## Setup
 
@@ -30,7 +30,7 @@ When this is not set, `scan_file` uploads to the API instead.
 
 ### Optional: Custom API URL
 
-Set a custom base URL (defaults to `https://api.surface.io`). For a local deployment of the open-source backend, include the `/api` path:
+Set a custom base URL (defaults to `https://app.tendrl.com/surface`):
 
 ```bash
 export SURFACE_BASE_URL="http://localhost:9080/api"

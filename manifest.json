@@ -34,7 +34,7 @@
       "type": "string",
       "title": "Surface Base URL",
       "description": "Surface API base URL. Override to point at a local or self-hosted instance, e.g. http://localhost:8085/api",
-      "default": "https://api.surface.io",
+      "default": "https://app.tendrl.com/surface",
       "required": false
     }
   },

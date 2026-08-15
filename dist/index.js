@@ -9,7 +9,7 @@ import { SCAN_RESULT_APP_HTML } from "./scanResultApp.js";
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
-const DEFAULT_BASE_URL = "https://api.surface.io";
+const DEFAULT_BASE_URL = "https://app.tendrl.com/surface";
 function getBaseUrl() {
     return process.env.SURFACE_BASE_URL ?? DEFAULT_BASE_URL;
 }
@@ -566,7 +566,7 @@ for (const src of sdkSources) {
 // --- API Reference (comprehensive markdown) ---
 const apiReference = `# Surface API Reference
 
-Base URL: \`https://api.surface.io\`
+Base URL: \`https://app.tendrl.com/surface\`
 
 All authenticated endpoints require \`Authorization: Bearer <api_key>\` header.
 

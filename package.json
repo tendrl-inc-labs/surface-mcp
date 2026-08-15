@@ -1,5 +1,5 @@
 {
-  "name": "@surface/mcp-server",
+  "name": "@tendrl/surface-mcp",
   "version": "1.0.0",
   "description": "MCP server for Surface — exposes file scanning API, SDK docs, and user documentation",
   "type": "module",
@@ -7,8 +7,24 @@
   "bin": {
     "surface-mcp": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tendrl-inc-labs/surface-mcp.git"
+  },
+  "homepage": "https://tendrl.com/docs/surface/ai/mcp-server/",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js"
   },
   "dependencies": {

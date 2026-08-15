@@ -124,14 +124,14 @@ The Surface MCP server is an HTTP endpoint embedded in the Surface API:
 
 ### Local scanning (optional)
 
-For offline scanning where files never leave your machine, you can alternatively use the standalone `surface-mcp` npm package with a local scanner binary:
+For offline scanning where files never leave your machine, you can alternatively use the standalone `@tendrl/surface-mcp` npm package with a local scanner binary:
 
 ```json
 {
   "mcpServers": {
     "surface": {
       "command": "npx",
-      "args": ["-y", "surface-mcp"],
+      "args": ["-y", "@tendrl/surface-mcp"],
       "env": {
         "SURFACE_KEY": "${SURFACE_KEY}",
         "SURFACE_SCANNER_PATH": "/path/to/scanner"
