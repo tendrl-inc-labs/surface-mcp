@@ -10,31 +10,48 @@ You have access to the Surface MCP server which provides malware scanning, threa
 
 ## Available Tools
 
-| Tool | Purpose |
-|------|---------|
-| `scan_file` | Scan a file by absolute path — returns safety score, IOCs, YARA matches, engine results |
-| `scan_payload` | Scan raw text/code inline without a file — useful for API bodies, agent messages, config snippets |
-| `get_scan` | Poll a deferred scan by ID (large files return 202 with a scan ID) |
-| `get_scan_history` | Browse past scans (paginated) |
-| `get_scan_detail` | Full result for a historical scan |
-| `list_profiles` | List scan profiles (file type restrictions, engine config, webhooks) |
-| `create_profile` | Create a new scan profile with custom engine config, file restrictions, or webhooks |
-| `update_profile` | Update an existing scan profile |
-| `delete_profile` | Delete a scan profile |
-| `get_usage` | Check scan quota (used vs monthly limit) |
-| `get_account` | Account details and plan info |
-| `get_plans` | List available billing plans |
-| `list_api_keys` | List Surface API keys (metadata only) |
-| `create_api_key` | Create a new Surface API key |
-| `delete_api_key` | Delete a Surface API key |
+Surface has two servers and they do **not** expose the same tools. Check which one is
+connected before promising the user a capability:
+
+- **Hosted** (`https://app.tendrl.com/surface/mcp`) — the usual setup. 13 tools. It runs
+  on Tendrl's side and cannot read your filesystem.
+- **Local** (`mcp-server/`, run on your own machine) — adds the tools that need disk
+  access or key management.
+
+| Tool | Purpose | Hosted | Local |
+|------|---------|:------:|:-----:|
+| `scan_payload` | Scan raw text/code/bytes inline — API bodies, agent messages, config snippets, or file contents you have already read | ✅ | ✅ |
+| `scan_file` | Scan a file by absolute path — the server opens it itself | — | ✅ |
+| `get_scan` | Poll a deferred scan by ID (large inputs return 202 with a scan ID) | ✅ | ✅ |
+| `get_scan_history` | Browse past scans (paginated) | ✅ | ✅ |
+| `get_scan_detail` | Full result for a historical scan | ✅ | ✅ |
+| `list_profiles` | List scan profiles (file type restrictions, engine config, webhooks) | ✅ | ✅ |
+| `create_profile` | Create a scan profile | ✅ | ✅ |
+| `update_profile` | Update a scan profile | ✅ | ✅ |
+| `delete_profile` | Delete a scan profile | ✅ | ✅ |
+| `get_usage` | Check scan quota (used vs monthly limit) | ✅ | ✅ |
+| `get_account` | Account details and plan info | ✅ | ✅ |
+| `get_plans` | List available billing plans | ✅ | ✅ |
+| `search_docs` | Search Surface documentation | ✅ | ✅ |
+| `list_api_keys` | List Surface API keys (metadata only, never the token) | ✅ | ✅ |
+| `create_api_key` | Create a Surface API key | — | ✅ |
+| `delete_api_key` | Delete a Surface API key | — | ✅ |
+
+**Scanning a file on the hosted server:** there is no `scan_file` — an MCP tool call
+carries JSON, not a file handle, and the hosted server has no access to your disk. Read
+the file yourself and pass its contents to `scan_payload`. That is the normal path and
+gives the same engines and the same verdict.
 
 ## When to Use Each Tool
 
 ### Scan a file the user is working on
 ```
 User: "Is this binary safe?" / "Scan this file" / "Check download.exe for malware"
-→ Use scan_file with the absolute path
+→ Local server:  scan_file with the absolute path
+→ Hosted server: read the file, then scan_payload with its contents
 ```
+Do not call `scan_file` without checking it is in the connected server's tool list —
+on the hosted server it does not exist.
 
 ### Scan code, config, or text content inline
 ```
@@ -124,14 +141,16 @@ The Surface MCP server is an HTTP endpoint embedded in the Surface API:
 
 ### Local scanning (optional)
 
-For offline scanning where files never leave your machine, you can alternatively use the standalone `@tendrl/surface-mcp` npm package with a local scanner binary:
+For offline scanning where files never leave your machine, there is a standalone local
+MCP server in the `mcp-server/` directory of the Surface repository. Build it and point
+your client at the built entry point:
 
 ```json
 {
   "mcpServers": {
     "surface": {
-      "command": "npx",
-      "args": ["-y", "@tendrl/surface-mcp"],
+      "command": "node",
+      "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
         "SURFACE_KEY": "${SURFACE_KEY}",
         "SURFACE_SCANNER_PATH": "/path/to/scanner"
@@ -140,3 +159,8 @@ For offline scanning where files never leave your machine, you can alternatively
   }
 }
 ```
+
+> **Do not install this from npm yet.** The package name `@tendrl/surface-mcp` is not
+> published, and the unscoped name `surface-mcp` on npm belongs to an unrelated
+> third party — installing it would run someone else's code. Use the local path above
+> until the scoped package is published.
