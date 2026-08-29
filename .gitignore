@@ -1,0 +1,10 @@
+# Build and install artefacts. node_modules was committed once — 3,736 files
+# reached the public repo — because a `git add -A` followed an `npm ci`.
+node_modules/
+.mcpb-stage/
+dist-release/
+dist-local/
+*.mcpb
+
+# OS noise
+.DS_Store

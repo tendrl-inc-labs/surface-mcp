@@ -71,9 +71,18 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
+          notes="Claude Desktop extension for Surface. Install the server with
+          \`npx -y github:tendrl-inc-labs/surface-mcp\`, or open surface.mcpb
+          in Claude Desktop."
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             tag="manual-$(git rev-parse --short HEAD)"
-            gh release create "$tag" --title "$tag" --notes "Manual build" || true
+            notes="Manual build from $(git rev-parse --short HEAD)"
+          fi
+          # A tag push does NOT create a release — only the tag. `gh release
+          # upload` then fails with "release not found", which is exactly how
+          # v1.0.0 failed after packing the bundle successfully.
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "$notes"
           fi
           gh release upload "$tag" \
             dist-release/surface.mcpb \
