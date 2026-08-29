@@ -24,6 +24,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "build": "tsc",
+    "prepare": "tsc",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js"
   },

@@ -97,6 +97,11 @@ export const SCAN_RESULT_APP_HTML = `<!doctype html>
     var score = num(pick(sc,"score","safety_score","safetyScore"));
     var level = (pick(sc,"threatLevel","threat_level","verdict","level")||"").toString();
     var action = (pick(sc,"recommendedAction","recommended_action")||"").toString();
+    // How far Surface's analysis reached for this format. A "minimal" scan is
+    // capped at Informational and never reports Clean, so the card must not
+    // present it as a plain pass — the agent is about to act on this answer.
+    var coverage = (pick(sc,"coverage")||"").toString().toLowerCase();
+    var coverageNote = (pick(sc,"coverageNote","coverage_note")||"").toString();
     var lower = level.toLowerCase();
     var danger = pick(sc,"malicious")===true || action.toLowerCase()==="block" || lower.indexOf("malicious")>=0 || lower.indexOf("high")>=0 || lower.indexOf("critical")>=0 || (score!=null && score<40);
     var warn = !danger && (lower.indexOf("suspicious")>=0 || lower.indexOf("medium")>=0 || lower.indexOf("low")>=0 || (score!=null && score<70));
@@ -116,9 +121,12 @@ export const SCAN_RESULT_APP_HTML = `<!doctype html>
     else label = level || (danger?"Malicious":(warn?"Suspicious":"Clean"));
 
     return { sc:sc, score:score, level:level, action:action, inj:inj, injHigh:injHigh, pi:pi,
+      coverage: coverage, coverageNote: coverageNote,
       label: label,
       color: danger?"var(--danger)":(warn?"var(--warn)":"var(--safe)"),
-      pass: !danger && !inj };
+      // A minimal-coverage result is not a clean bill of health, so it does not
+      // get the unqualified green pass state.
+      pass: !danger && !inj && coverage !== "minimal" };
   }
 
   function tile(k,v){ return '<div class="tile"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'; }
@@ -176,6 +184,10 @@ export const SCAN_RESULT_APP_HTML = `<!doctype html>
     if(vi.level) tiles += tile(vi.inj?"Malware threat":"Threat level", esc(vi.level));
     if(confidence) tiles += tile("Confidence", esc(confidence)+(confReason?(' <span style="color:var(--muted);font-weight:400">— '+esc(confReason)+'</span>'):''));
     if(vi.action) tiles += tile("Recommended", esc(vi.action)+((vi.inj && vi.action.toLowerCase()==="allow")?(' <span style="color:'+vi.color+';font-weight:400">— overridden, injection detected</span>'):''));
+    if(vi.coverage && vi.coverage !== "full") {
+      tiles += tile("Coverage", esc(vi.coverage === "minimal" ? "Minimal" : "Partial") +
+        (vi.coverageNote ? (' <span style="color:var(--muted);font-weight:400">— '+esc(vi.coverageNote)+'</span>') : ''));
+    }
     if(name) tiles += tile("File", esc(name));
     if(size!=null) tiles += tile("Size", esc(size)+" B");
     if(ctype) tiles += tile("Type", esc(ctype));
