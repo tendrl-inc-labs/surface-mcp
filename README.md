@@ -2,10 +2,39 @@
 
 Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/overview/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
 
-## Setup
+## Install
 
 ```bash
-cd mcp-server
+npx -y github:tendrl-inc-labs/surface-mcp
+```
+
+npm clones this repository and builds it from source on install, so there is
+nothing to publish and nothing stale to serve.
+
+Install by repository, not by name: an unrelated third party owns the name
+`surface-mcp` on npm, and installing that name runs their code.
+
+In an MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "surface": {
+      "command": "npx",
+      "args": ["-y", "github:tendrl-inc-labs/surface-mcp"],
+      "env": {
+        "SURFACE_KEY": "${SURFACE_KEY}"
+      }
+    }
+  }
+}
+```
+
+## Build from source
+
+```bash
+git clone https://github.com/tendrl-inc-labs/surface-mcp
+cd surface-mcp
 npm install
 npm run build
 ```

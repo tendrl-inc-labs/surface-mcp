@@ -1,0 +1,81 @@
+# Builds the Claude Desktop extension and attaches it to a GitHub release.
+#
+# The docs link to
+#   https://github.com/tendrl-inc-labs/surface-mcp/releases/latest/download/surface.mcpb
+# so the asset name is load-bearing: Claude Desktop opens that file directly and
+# `latest/download/<name>` only resolves if the name is stable across releases.
+#
+# publish-local.sh does the same packaging against local MinIO for development.
+# Keep the two staging steps in step — an .mcpb is a zip with manifest.json at
+# the root plus everything the entry point needs at runtime, which means dist/
+# and the PRODUCTION node_modules (devDependencies would bloat it and ship the
+# TypeScript compiler to end users).
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+jobs:
+  mcpb:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # needed to create the release and upload the asset
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify the build is current
+        # The git-install path rebuilds from source via `prepare`, but the .mcpb
+        # ships a compiled bundle. A stale committed dist once shipped a scan
+        # card that rendered minimal coverage as a clean pass, so fail loudly
+        # rather than package whatever happens to be in dist/.
+        run: |
+          if ! git diff --quiet -- dist; then
+            echo "::error::dist/ differs from a fresh build - commit the rebuilt output"
+            git diff --stat -- dist
+            exit 1
+          fi
+
+      - name: Stage the bundle
+        run: |
+          set -euo pipefail
+          rm -rf .mcpb-stage && mkdir -p .mcpb-stage
+          cp manifest.json package.json .mcpb-stage/
+          cp -R dist .mcpb-stage/dist
+          [ -f README.md ] && cp README.md .mcpb-stage/
+          [ -f LICENSE ] && cp LICENSE .mcpb-stage/
+          cd .mcpb-stage && npm install --omit=dev --no-audit --no-fund
+
+      - name: Pack surface.mcpb
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          (cd .mcpb-stage && zip -qr "../dist-release/surface.mcpb" . -x '*.DS_Store')
+          (cd dist-release && sha256sum surface.mcpb > SHA256SUMS.txt)
+          ls -la dist-release
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="manual-$(git rev-parse --short HEAD)"
+            gh release create "$tag" --title "$tag" --notes "Manual build" || true
+          fi
+          gh release upload "$tag" \
+            dist-release/surface.mcpb \
+            dist-release/SHA256SUMS.txt \
+            --clobber

@@ -10,9 +10,10 @@
 #
 # The platform serves it unauthenticated from
 #   <app>/api/public/tools/surface-mcp/v1/<version>/surface.mcpb
-# the same channel as the scanner and dev-mcp binaries. The source repo is
-# private, so GitHub releases are not a distribution option — see the note in
-# tendrl-dev-mcp/.github/workflows/release.yml.
+# the same channel as the scanner and dev-mcp binaries. This is the LOCAL
+# publishing path for development; the public build is attached to a GitHub
+# release by .github/workflows/release.yml, which is possible because the
+# surface-mcp repository is public.
 #
 # Usage: ./publish-local.sh [version]        (default: latest)
 #
