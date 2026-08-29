@@ -160,7 +160,8 @@ your client at the built entry point:
 }
 ```
 
-> **Do not install this from npm yet.** The package name `@tendrl/surface-mcp` is not
-> published, and the unscoped name `surface-mcp` on npm belongs to an unrelated
-> third party — installing it would run someone else's code. Use the local path above
-> until the scoped package is published.
+> **Install by repository, not by name.** Surface's MCP server ships from GitHub,
+> not npm: use `npx -y github:tendrl-inc-labs/surface-mcp` (npm builds it from
+> source on install). Do not install the npm name `surface-mcp` — that belongs to
+> an unrelated third party and would run someone else's code. The local path above
+> also works if you have the repo checked out.
