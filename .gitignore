@@ -8,3 +8,9 @@ dist-local/
 
 # OS noise
 .DS_Store
+
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+*.pem
