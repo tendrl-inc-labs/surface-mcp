@@ -202,8 +202,9 @@ const scanPayloadTool = server.tool("scan_payload", "Scan a raw string or payloa
         return new Promise((resolve, reject) => {
             const args = [
                 "--stdin",
-                "--label",
-                label ?? "payload.bin",
+                // No label → no --label: the scanner reports the name as given,
+                // and a payload has no filename to invent.
+                ...(label ? ["--label", label] : []),
                 "--format",
                 "json",
                 "--api-key",
@@ -272,7 +273,7 @@ async function scanOnePayload(payload, label) {
     if (scannerPath) {
         // Local scan — piped via stdin, nothing leaves the machine.
         return new Promise((resolve, reject) => {
-            const child = execFile(scannerPath, ["--stdin", "--label", label ?? "payload.bin", "--format", "json", "--api-key", getApiKey()], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout) => {
+            const child = execFile(scannerPath, ["--stdin", ...(label ? ["--label", label] : []), "--format", "json", "--api-key", getApiKey()], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout) => {
                 const output = stdout?.trim();
                 if (!output) {
                     return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));

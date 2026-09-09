@@ -273,8 +273,9 @@ const scanPayloadTool = server.tool(
       return new Promise((resolve, reject) => {
         const args = [
           "--stdin",
-          "--label",
-          label ?? "payload.bin",
+          // No label → no --label: the scanner reports the name as given,
+          // and a payload has no filename to invent.
+          ...(label ? ["--label", label] : []),
           "--format",
           "json",
           "--api-key",
@@ -360,7 +361,7 @@ async function scanOnePayload(payload: string, label?: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const child = execFile(
         scannerPath,
-        ["--stdin", "--label", label ?? "payload.bin", "--format", "json", "--api-key", getApiKey()],
+        ["--stdin", ...(label ? ["--label", label] : []), "--format", "json", "--api-key", getApiKey()],
         { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
         (error, stdout) => {
           const output = stdout?.trim();
