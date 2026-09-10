@@ -1,6 +1,6 @@
 # Surface MCP Server
 
-Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/overview/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
+Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
 
 ## Install
 
