@@ -265,6 +265,12 @@ const actionContextShape = z.object({
     .string()
     .optional()
     .describe("What the user actually asked, from your trusted UI — not from the payload."),
+  allowed_egress: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'External hosts the agent is expected to send data to (its known integrations), e.g. ["api.stripe.com", "hooks.slack.com"]. Data sent to a host in neither principal_domains nor this list, and not named in the request, is flagged for review.',
+    ),
 });
 
 // --- Scan Payload ---
