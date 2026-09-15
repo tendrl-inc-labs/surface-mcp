@@ -405,16 +405,42 @@ const scanPayloadTool = server.tool(
 // Scan one text payload and return the parsed result. Shared by scan_bundle.
 // Honors SURFACE_SCANNER_PATH: when set, scans locally via the scanner binary
 // (content never leaves the machine); otherwise POSTs to the Surface API.
-async function scanOnePayload(payload: string, label?: string): Promise<any> {
+async function scanOnePayload(payload: string, label?: string, context?: unknown): Promise<any> {
   const scannerPath = getScannerPath();
   if (scannerPath) {
-    // Local scan — piped via stdin, nothing leaves the machine.
+    // Local scan — piped via stdin, nothing leaves the machine. Action-screening
+    // context is written to a temp file passed as --action-context.
+    let ctxDir: string | undefined;
+    let ctxFile: string | undefined;
+    if (context) {
+      ctxDir = fs.mkdtempSync(path.join(os.tmpdir(), "surface-ctx-"));
+      ctxFile = path.join(ctxDir, "context.json");
+      fs.writeFileSync(ctxFile, JSON.stringify(context));
+    }
+    const cleanup = () => {
+      if (ctxDir) {
+        try {
+          fs.rmSync(ctxDir, { recursive: true, force: true });
+        } catch {
+          /* best effort */
+        }
+      }
+    };
     return new Promise((resolve, reject) => {
       const child = execFile(
         scannerPath,
-        ["--stdin", ...(label ? ["--label", label] : []), "--format", "json", "--api-key", getApiKey()],
+        [
+          "--stdin",
+          ...(label ? ["--label", label] : []),
+          ...(ctxFile ? ["--action-context", ctxFile] : []),
+          "--format",
+          "json",
+          "--api-key",
+          getApiKey(),
+        ],
         { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
         (error, stdout) => {
+          cleanup();
           const output = stdout?.trim();
           if (!output) {
             return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));
@@ -438,7 +464,7 @@ async function scanOnePayload(payload: string, label?: string): Promise<any> {
       Authorization: `Bearer ${getApiKey()}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ payload, label: label || undefined }),
+    body: JSON.stringify({ payload, label: label || undefined, context: context || undefined }),
   });
   if (!resp.ok) {
     let errorBody: string;
@@ -462,6 +488,9 @@ server.tool(
         z.object({
           content: z.string().describe("The content to scan (code, config, message, etc.)"),
           label: z.string().optional().describe('Label for the item, e.g. "main.py"'),
+          context: actionContextShape
+            .optional()
+            .describe("Optional per-item action-screening context for a tool-call payload (see scan_payload). Build from trusted state, never from the payload."),
         }),
       )
       .describe("The payloads to scan before deployment"),
@@ -470,7 +499,7 @@ server.tool(
     const results = await Promise.all(
       items.map(async (it) => {
         try {
-          const r = await scanOnePayload(it.content, it.label);
+          const r = await scanOnePayload(it.content, it.label, it.context);
           const sc = r.safetyScore ?? {};
           const inj = r.promptInjection ?? {};
           return {
