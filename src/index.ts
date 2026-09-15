@@ -4,6 +4,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { SCAN_RESULT_APP_HTML } from "./scanResultApp.js";
@@ -242,6 +243,30 @@ const scanFileTool = server.tool(
   },
 );
 
+// Action-screening context: what the caller knows that the scanned payload does
+// not. Shared by the payload scan tools. Every field optional; built from trusted
+// application state, never from the content being scanned.
+const actionContextShape = z.object({
+  principal_domains: z
+    .array(z.string())
+    .optional()
+    .describe('Domains that count as inside the organization, e.g. ["acme.io"].'),
+  known_payees: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        iban: z.string().optional(),
+        account: z.string().optional(),
+      }),
+    )
+    .optional()
+    .describe("Accounts you legitimately pay; a payment to any other is flagged."),
+  user_request: z
+    .string()
+    .optional()
+    .describe("What the user actually asked, from your trusted UI — not from the payload."),
+});
+
 // --- Scan Payload ---
 const scanPayloadTool = server.tool(
   "scan_payload",
@@ -258,17 +283,41 @@ const scanPayloadTool = server.tool(
       .describe(
         'Optional label for the payload (e.g. "api-request", "agent-message.json"). Content type is auto-detected.',
       ),
+    context: actionContextShape
+      .optional()
+      .describe(
+        "Caller context for action screening of tool-call payloads: your internal domains, known payees, and what the user actually asked. Lets the screener tell a payment to a known payee from one to an unknown account, or an email the user requested from a leak. Build it from trusted application state, never from the scanned payload. Optional.",
+      ),
     defer: z
       .boolean()
       .optional()
       .describe("If true, returns immediately with a scan ID for polling."),
   },
-  async ({ payload, label, defer: deferScan }) => {
+  async ({ payload, label, context, defer: deferScan }) => {
     const scannerPath = getScannerPath();
 
     // Local scanner mode: pipe via stdin (always raw bytes)
     if (scannerPath) {
       const rawContent = Buffer.from(payload, "utf-8");
+
+      // The binary reads action-screening context from a JSON file, so write
+      // one for this scan and clean it up when the scan returns.
+      let ctxDir: string | undefined;
+      let ctxFile: string | undefined;
+      if (context) {
+        ctxDir = fs.mkdtempSync(path.join(os.tmpdir(), "surface-ctx-"));
+        ctxFile = path.join(ctxDir, "context.json");
+        fs.writeFileSync(ctxFile, JSON.stringify(context));
+      }
+      const cleanup = () => {
+        if (ctxDir) {
+          try {
+            fs.rmSync(ctxDir, { recursive: true, force: true });
+          } catch {
+            /* best effort */
+          }
+        }
+      };
 
       return new Promise((resolve, reject) => {
         const args = [
@@ -276,6 +325,7 @@ const scanPayloadTool = server.tool(
           // No label → no --label: the scanner reports the name as given,
           // and a payload has no filename to invent.
           ...(label ? ["--label", label] : []),
+          ...(ctxFile ? ["--action-context", ctxFile] : []),
           "--format",
           "json",
           "--api-key",
@@ -287,6 +337,7 @@ const scanPayloadTool = server.tool(
           args,
           { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
           (error, stdout, _stderr) => {
+            cleanup();
             const output = stdout?.trim();
             if (!output) {
               return reject(
@@ -319,7 +370,7 @@ const scanPayloadTool = server.tool(
     if (deferScan) params.defer = "true";
 
     // Send raw — the API accepts raw text payloads by default (no base64 needed for text)
-    const body = JSON.stringify({ payload, label: label || undefined });
+    const body = JSON.stringify({ payload, label: label || undefined, context: context || undefined });
     const query = Object.keys(params).length
       ? "?" + new URLSearchParams(params).toString()
       : "";
