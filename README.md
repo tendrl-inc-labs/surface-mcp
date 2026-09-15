@@ -117,7 +117,7 @@ claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE
 | Tool | Description |
 |------|-------------|
 | `scan_file` | Upload and scan a file for malware (accepts absolute file path) |
-| `scan_payload` | Scan raw content for threats — detects prompt injection, SQL/XSS injection, credential leaks, malicious code, and suspicious tool calls. Accepts raw text (default) or base64 for binary. Max 10 MB. |
+| `scan_payload` | Scan raw content for threats — detects prompt injection, SQL/XSS injection, credential leaks, malicious code, and suspicious tool calls. Accepts raw text (default) or base64 for binary. Max 10 MB. Takes an optional `context` for action screening (see below). |
 | `get_scan` | Poll a deferred scan result by scan ID |
 | `get_account` | Get account details |
 | `get_usage` | Get scan usage vs monthly limit |
@@ -131,6 +131,25 @@ claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE
 | `get_scan_history` | Get paginated scan history |
 | `get_scan_detail` | Get full details of a historical scan |
 | `get_plans` | Get available billing plans |
+
+### Action screening context
+
+When `scan_payload` receives a tool call an agent is about to make, some actions are dangerous on their own (deleting a database, a secret in a URL) and some only relative to you — a payment is fine to a known vendor but not to an unknown account; an email is fine to a colleague but not leaving to a personal address. Pass an optional `context` object so the screener can decide confidently instead of defaulting to "Review":
+
+```json
+{
+  "payload": "{\"tool\":\"create_payment\",\"args\":{\"iban\":\"GB82…\",\"amount\":18650}}",
+  "context": {
+    "principal_domains": ["acme.io"],
+    "known_payees": [{ "name": "Delta", "iban": "GB29NWBK60161331926819" }],
+    "user_request": "pay this month's invoices"
+  }
+}
+```
+
+- **Payments** to an account not in `known_payees` are Blocked; to a known payee, Allowed.
+- **Data egress** leaving `principal_domains` (or to a free-mail address) is flagged; a recipient named in `user_request` is cleared.
+- Build `context` from **trusted host state**, never from the payload being scanned. It is optional; omit it for face-value screening.
 
 ## Resources
 
