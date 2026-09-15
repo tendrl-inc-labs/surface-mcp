@@ -202,6 +202,10 @@ const actionContextShape = z.object({
         .string()
         .optional()
         .describe("What the user actually asked, from your trusted UI — not from the payload."),
+    allowed_egress: z
+        .array(z.string())
+        .optional()
+        .describe('External hosts the agent is expected to send data to (its known integrations), e.g. ["api.stripe.com", "hooks.slack.com"]. Data sent to a host in neither principal_domains nor this list, and not named in the request, is flagged for review.'),
 });
 // --- Scan Payload ---
 const scanPayloadTool = server.tool("scan_payload", "Scan a raw string or payload for malware without file upload. Content type is auto-detected from bytes. Useful for scanning API request/response bodies, form inputs, agent messages, or any text content inline. When SURFACE_SCANNER_PATH is set, scans locally via stdin. Otherwise sends to the Surface API.", {
