@@ -251,16 +251,6 @@ const actionContextShape = z.object({
     .array(z.string())
     .optional()
     .describe('Domains that count as inside the organization, e.g. ["acme.io"].'),
-  known_payees: z
-    .array(
-      z.object({
-        name: z.string().optional(),
-        iban: z.string().optional(),
-        account: z.string().optional(),
-      }),
-    )
-    .optional()
-    .describe("Accounts you legitimately pay; a payment to any other is flagged."),
   user_request: z
     .string()
     .optional()
