@@ -134,21 +134,21 @@ claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE
 
 ### Action screening context
 
-When `scan_payload` receives a tool call an agent is about to make, some actions are dangerous on their own (deleting a database, a secret in a URL) and some only relative to you — a payment is fine to a known vendor but not to an unknown account; an email is fine to a colleague but not leaving to a personal address. Pass an optional `context` object so the screener can decide confidently instead of defaulting to "Review":
+When `scan_payload` (or `scan_bundle`) receives a tool call an agent is about to make, some actions are dangerous on their own (deleting a database, a secret in a URL, a crypto-address payout) and some only relative to you — data is only leaking if it leaves your domains or goes to a host you never declared. Pass an optional `context` object so the screener can decide confidently instead of defaulting to "Review":
 
 ```json
 {
-  "payload": "{\"tool\":\"create_payment\",\"args\":{\"iban\":\"GB82…\",\"amount\":18650}}",
+  "payload": "{\"tool\":\"http_request\",\"args\":{\"method\":\"POST\",\"url\":\"https://webhook.partner.io/sync\",\"body\":{}}}",
   "context": {
     "principal_domains": ["acme.io"],
-    "known_payees": [{ "name": "Delta", "iban": "GB29NWBK60161331926819" }],
-    "user_request": "pay this month's invoices"
+    "allowed_egress": ["api.stripe.com", "hooks.slack.com"],
+    "user_request": "sync this week's tickets to our partner"
   }
 }
 ```
 
-- **Payments** to an account not in `known_payees` are Blocked; to a known payee, Allowed.
-- **Data egress** leaving `principal_domains` (or to a free-mail address) is flagged; a recipient named in `user_request` is cleared.
+- **Data egress** leaving `principal_domains` (or to a free-mail address) is flagged; with `allowed_egress` set, a POST to a host on neither list is flagged for review while a Stripe or Slack call passes. A bare-IP destination or a secret in the body flags even without context.
+- **Dangerous on its face** — crypto and gift-card payouts, `rm -rf` of a data directory, admin grants — flag with no context.
 - Build `context` from **trusted host state**, never from the payload being scanned. It is optional; omit it for face-value screening.
 
 ## Resources
