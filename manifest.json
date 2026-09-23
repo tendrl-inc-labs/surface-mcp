@@ -34,7 +34,7 @@
       "type": "string",
       "title": "Surface Base URL",
       "description": "Surface API base URL. Override to point at a local or self-hosted instance, e.g. http://localhost:8085/api",
-      "default": "https://app.tendrl.com/surface",
+      "default": "https://app.tendrl.com/surface/api",
       "required": false
     }
   },
@@ -53,7 +53,7 @@
     { "name": "delete_profile", "description": "Delete a scan profile." },
     { "name": "list_api_keys", "description": "List API keys." },
     { "name": "create_api_key", "description": "Create an API key." },
-    { "name": "delete_api_key", "description": "Delete an API key." }
+    { "name": "delete_api_key", "description": "Revoke an API key." }
   ],
   "keywords": ["security", "malware", "scanning", "prompt-injection", "surface"],
   "license": "UNLICENSED"

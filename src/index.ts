@@ -13,7 +13,9 @@ import { SCAN_RESULT_APP_HTML } from "./scanResultApp.js";
 // Config
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BASE_URL = "https://app.tendrl.com/surface";
+// The REST API lives under /surface/api. /surface alone is the dashboard SPA:
+// GETs there return its HTML and anything else is a 405.
+const DEFAULT_BASE_URL = "https://app.tendrl.com/surface/api";
 
 function getBaseUrl(): string {
   return process.env.SURFACE_BASE_URL ?? DEFAULT_BASE_URL;
@@ -678,16 +680,20 @@ server.tool(
 // --- Create API Key ---
 server.tool(
   "create_api_key",
-  "Create a new API key. Returns api_key_id (stable identifier, always visible) and token (the Bearer secret — shown once, store it immediately).",
+  "Create a new API key. Requires the calling key to have API-key write permission (the admin role). Returns id (for delete_api_key), api_key_id (stable identifier, always visible) and token (the Bearer secret — shown once, store it immediately).",
   {
     label: z.string().describe("Human-readable label for the key"),
     profile_id: z
       .string()
       .optional()
       .describe("Scan profile ID to link this key to"),
+    role_name: z
+      .string()
+      .optional()
+      .describe("Role for the new key: admin, scanner, analyst, viewer, or a custom role name. Defaults to scanner."),
   },
   async (params) => {
-    const result = await apiRequest("POST", "/account/keys", params);
+    const result = await apiRequest("POST", "/api-keys", params);
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -697,17 +703,17 @@ server.tool(
 // --- Delete API Key ---
 server.tool(
   "delete_api_key",
-  "Delete an API key by its internal id (the 'id' field from list_api_keys, not the api_key_id).",
+  "Revoke an API key by its internal id (the 'id' field from list_api_keys or create_api_key, not the api_key_id). Requires the calling key to have API-key delete permission (the admin role).",
   {
     key_id: z.string().describe("Internal key id to delete (the 'id' field from list_api_keys)"),
   },
   async ({ key_id }) => {
     await apiRequest(
       "DELETE",
-      `/account/keys/${encodeURIComponent(key_id)}`,
+      `/api-keys/${encodeURIComponent(key_id)}`,
     );
     return {
-      content: [{ type: "text", text: "API key deleted successfully." }],
+      content: [{ type: "text", text: "API key revoked." }],
     };
   },
 );
@@ -858,7 +864,7 @@ for (const src of sdkSources) {
 // --- API Reference (comprehensive markdown) ---
 const apiReference = `# Surface API Reference
 
-Base URL: \`https://app.tendrl.com/surface\`
+Base URL: \`https://app.tendrl.com/surface/api\`
 
 All authenticated endpoints require \`Authorization: Bearer <api_key>\` header.
 
@@ -1009,15 +1015,15 @@ Use \`Authorization: Bearer <token>\` to authenticate requests.
 ### GET /account/keys
 List all API keys. Returns \`api_key_id\`, \`role_name\`, \`label\`, \`profile_id\`, timestamps — never the token.
 
-### POST /account/keys
-Create a key. Body: \`{"label": "Production", "role_name": "scanner", "profile_id": "uuid"}\`
-Response includes \`api_key_id\` and \`token\` (shown once — store it immediately).
+### POST /api-keys
+Create a key (admin role required). Body: \`{"label": "Production", "role_name": "scanner", "profile_id": "uuid"}\` — \`role_name\` defaults to \`scanner\`, \`profile_id\` is optional.
+Response includes \`id\`, \`api_key_id\` and \`token\` (shown once — store it immediately).
 
 ### PATCH /account/keys/:id/profile
 Assign or unassign a scan profile. Body: \`{"profile_id": "uuid"}\` (empty string to unassign).
 
-### DELETE /account/keys/:id
-Revoke a key by its internal \`id\` (not \`api_key_id\`).
+### DELETE /api-keys/:id
+Revoke a key by its internal \`id\` (not \`api_key_id\`). Admin role required.
 
 ---
 
@@ -1144,7 +1150,7 @@ Webhooks let your server react to scan results in real-time. When a scan profile
 
 2. Create an API key linked to that profile:
    \`\`\`
-   POST /account/keys
+   POST /api-keys
    { "label": "Webhook Key", "profile_id": "<profile-id>" }
    \`\`\`
 

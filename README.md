@@ -59,7 +59,7 @@ When this is not set, `scan_file` uploads to the API instead.
 
 ### Optional: Custom API URL
 
-Set a custom base URL (defaults to `https://app.tendrl.com/surface`):
+Set a custom base URL (defaults to `https://app.tendrl.com/surface/api`):
 
 ```bash
 export SURFACE_BASE_URL="http://localhost:9080/api"
