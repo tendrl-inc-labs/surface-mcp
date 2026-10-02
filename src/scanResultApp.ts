@@ -113,7 +113,10 @@ export const SCAN_RESULT_APP_HTML = `<!doctype html>
     // regardless of the (malware-oriented) safety score.
     var pi = r.promptInjection || (sc && sc.promptInjection);
     var inj = !!(pi && (pi.detected===true || (pi.findings && pi.findings.length)));
-    var injHigh = inj && (String((pi&&pi.risk)||"").toLowerCase()==="high" || ((pi&&pi.findings)||[]).some(function(f){ return String((f&&f.severity)||"").toLowerCase()==="high"; }));
+    // pi.verdict is the scanner's own decision for this caller (who wrote the
+    // text, how strict they asked to be); a high finding in a user's own prompt
+    // is held for Review, not blocked. Older results have no verdict.
+    var injHigh = inj && (pi && pi.verdict ? pi.verdict==="Block" : (String((pi&&pi.risk)||"").toLowerCase()==="high" || ((pi&&pi.findings)||[]).some(function(f){ return String((f&&f.severity)||"").toLowerCase()==="high"; })));
     if (inj) { danger = danger || injHigh; warn = warn || !injHigh; }
 
     var label;

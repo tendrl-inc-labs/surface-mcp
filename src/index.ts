@@ -263,6 +263,24 @@ const actionContextShape = z.object({
     .describe(
       'External hosts the agent is expected to send data to (its known integrations), e.g. ["api.stripe.com", "hooks.slack.com"]. Data sent to a host in neither principal_domains nor this list, and not named in the request, is flagged for review.',
     ),
+  strictness: z
+    .enum(["relaxed", "balanced", "strict"])
+    .optional()
+    .describe(
+      'relaxed: stop only what is certainly malicious. balanced (default): stop what is certainly malicious, ask before risky or irreversible actions. strict: ask or stop on anything that needs judgment, including mail to personal addresses and outside recipients.',
+    ),
+  source: z
+    .enum(["user_prompt", "content", "tool_call"])
+    .optional()
+    .describe(
+      "Who wrote the payload. user_prompt: the person the agent works for; a prompt-injection match there is held for Review, never blocked, unless strictness is strict. content: text the agent reads (a web page, an email, tool output); an injection there blocks. tool_call: an action the agent is about to take. Omit if unknown.",
+    ),
+  personal_mail_expected: z
+    .boolean()
+    .optional()
+    .describe(
+      "Set when your users routinely correspond with people on personal mailboxes (customers, candidates, family on Gmail). A send to a personal address the user named in user_request is then allowed below strict. A live credential still blocks.",
+    ),
 });
 
 // --- Scan Payload ---
@@ -1089,7 +1107,7 @@ Every scan returns a \`safetyScore\` object:
 | Field | Type | Description |
 |-------|------|-------------|
 | score | int | 0-100 safety score (100 = safest) |
-| threatLevel | string | "Clean", "Suspicious", or "Malicious" |
+| threatLevel | string | "Clean", "Informational", "Suspicious", "Risky" (a risky agent action; recommends Block) or "Malicious" |
 | confidence | string | "High", "Medium", or "Low" |
 | confidenceScore | float | 0.0-1.0 numeric confidence |
 | primaryThreat | string | Main threat identified |
