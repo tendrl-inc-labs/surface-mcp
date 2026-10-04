@@ -195,7 +195,7 @@ const actionContextShape = z.object({
     user_request: z
         .string()
         .optional()
-        .describe("What the user actually asked, from your trusted UI — not from the payload."),
+        .describe("What the user actually asked, from your trusted UI — not from the payload. A send to a personal mailbox the request never named is held for review; without it such sends are not judged below strict."),
     allowed_egress: z
         .array(z.string())
         .optional()
