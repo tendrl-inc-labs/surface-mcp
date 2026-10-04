@@ -148,6 +148,7 @@ When `scan_payload` (or `scan_bundle`) receives a tool call an agent is about to
 ```
 
 - **Data egress** leaving `principal_domains` (or to a free-mail address) is flagged; with `allowed_egress` set, a POST to a host on neither list is flagged for review while a Stripe or Slack call passes. A bare-IP destination or a secret in the body flags even without context.
+- **Personal mailboxes** (Gmail, Outlook…) are ordinary for agents, so below strict a send to one is held only when `user_request` was passed and never named that address, the message describes bulk data, or the call came out of a document. Without `user_request` such sends are not judged — pass it to turn exfiltration screening on.
 - **Dangerous on its face** — crypto and gift-card payouts, `rm -rf` of a data directory, admin grants — flag with no context.
 - Build `context` from **trusted host state**, never from the payload being scanned. It is optional; omit it for face-value screening.
 
