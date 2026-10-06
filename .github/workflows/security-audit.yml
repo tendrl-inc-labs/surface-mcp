@@ -1,0 +1,69 @@
+# npm audit of the dependencies the MCP server ships.
+#
+# People install this repo straight from GitHub (`npx github:...`, the .mcpb),
+# so an advisory in anything it pulls in reaches them with no other gate. The
+# repo had no CI at all until this: nine advisories (one critical) sat in the
+# lockfile unnoticed until a manual audit on 2026-10-06.
+#
+#   - Pull requests: block a merge that leaves a high or critical advisory.
+#   - Daily: advisories are published continuously, not when someone pushes,
+#     so a scheduled run catches one disclosed against a repo nobody touched.
+#     Scheduled workflows fire only on the default branch, which is the one
+#     people install.
+#
+# Mirrors the npm audit step in tendrl-surface's security-audit.yml.
+name: Security audit
+
+on:
+  pull_request:
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: npm audit (fail on high or critical)
+        # Lockfile only: no install, nothing executed. A registry outage is not
+        # a finding, so it warns rather than fails; blocking every merge on
+        # npm's uptime is how a security gate ends up disabled.
+        run: |
+          set +e
+          ok=0
+          for attempt in 1 2; do
+            # Cap npm's own retry loop, which otherwise backs off for minutes
+            # against a failing registry.
+            npm audit --package-lock-only --json \
+              --fetch-retries=1 --fetch-retry-maxtimeout=10000 > /tmp/audit.json 2>/tmp/audit.err
+            python3 -c "import json;json.load(open('/tmp/audit.json'))['metadata']['vulnerabilities']" 2>/dev/null && { ok=1; break; }
+            echo "no usable audit JSON (attempt $attempt)"; head -3 /tmp/audit.err
+            sleep $((attempt * 10))
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::warning::npm audit unavailable (registry error) — not treated as a finding"
+            exit 0
+          fi
+          python3 - <<'EOF'
+          import json, sys
+          report = json.load(open('/tmp/audit.json'))
+          counts = report['metadata']['vulnerabilities']
+          print(counts)
+          for name, v in sorted(report.get('vulnerabilities', {}).items()):
+              if v['severity'] in ('high', 'critical'):
+                  titles = [x.get('title') for x in v['via'] if isinstance(x, dict)]
+                  more = f" (+{len(titles) - 2} more)" if len(titles) > 2 else ""
+                  detail = '; '.join(titles[:2]) + more if titles else 'via ' + ', '.join(map(str, v['via']))
+                  print(f"::error::{v['severity']}: {name} {v['range']} — {detail}")
+          sys.exit(1 if counts.get('high', 0) + counts.get('critical', 0) else 0)
+          EOF
