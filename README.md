@@ -100,6 +100,8 @@ With local scanner (files never leave your machine):
 }
 ```
 
+The local scanner is part of paid plans and checks its license with your key, so local mode needs `SURFACE_KEY` too (`SURFACE_API_KEY`, the scanner's own name for it, also works). The server hands the key to the scanner in its environment, never on its command line, where other processes on the machine could read it.
+
 ## Usage with Claude Code
 
 Add to your Claude Code settings:
