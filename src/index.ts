@@ -22,13 +22,39 @@ function getBaseUrl(): string {
 }
 
 function getApiKey(): string {
-  const key = process.env.SURFACE_KEY;
+  // SURFACE_API_KEY is the scanner binary's own name for it, so a machine set
+  // up for the binary works here too.
+  const key = process.env.SURFACE_KEY ?? process.env.SURFACE_API_KEY;
   if (!key) {
     throw new Error(
       "SURFACE_KEY environment variable is required. Set it to your Surface API key.",
     );
   }
   return key;
+}
+
+/**
+ * Options for running the local scanner binary. The key goes in its
+ * environment (SURFACE_API_KEY, which the binary reads), not on its command
+ * line, where any other process on the machine could read it from the
+ * process list. A released binary needs it to verify its licence.
+ */
+function scannerExecOptions() {
+  return {
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: 120_000,
+    env: { ...process.env, SURFACE_API_KEY: getApiKey() },
+  };
+}
+
+/** The scanner's own explanation when it produced no result, if it gave one. */
+function scannerFailure(error: Error | null, stderr: string | undefined): Error {
+  const lines = (stderr ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("Error:") || l.startsWith("Set ") || l.startsWith("Create "));
+  const detail = lines.length > 0 ? lines.join(" ") : (error?.message ?? "");
+  return new Error(`Scanner produced no output. ${detail}`.trim());
 }
 
 /** Path to a local scanner binary. When set, scan_file shells out instead of calling the API. */
@@ -42,38 +68,28 @@ function getScannerPath(): string | undefined {
 
 /**
  * Run the local scanner binary on a file and return parsed JSON output.
- * The binary is invoked with `--format json --api-key <key> <file>`.
- * The API key allows the binary to report results to the server and
- * validate monthly scan quota.
+ * The binary is invoked with `--format json <file>`, the API key in its
+ * environment (see scannerExecOptions).
  */
 async function localScan(
   scannerPath: string,
   filePath: string,
 ): Promise<unknown> {
-  const apiKey = getApiKey();
+  const opts = scannerExecOptions();
 
   return new Promise((resolve, reject) => {
-    const args = ["--format", "json"];
-
-    // Pass API key so the binary can report results and respect server quota
-    args.push("--api-key", apiKey);
-
-    args.push(filePath);
+    const args = ["--format", "json", filePath];
 
     execFile(
       scannerPath,
       args,
-      { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
-      (error, stdout, _stderr) => {
+      opts,
+      (error, stdout, stderr) => {
         // The scanner exits 1 for Malicious/Suspicious verdicts — that's
         // expected, not an error. Only reject if there's no parseable output.
         const output = stdout?.trim();
         if (!output) {
-          return reject(
-            new Error(
-              `Scanner produced no output. ${error?.message ?? ""}`.trim(),
-            ),
-          );
+          return reject(scannerFailure(error, stderr));
         }
 
         try {
@@ -344,23 +360,17 @@ const scanPayloadTool = server.tool(
           ...(ctxFile ? ["--action-context", ctxFile] : []),
           "--format",
           "json",
-          "--api-key",
-          getApiKey(),
         ];
 
         const child = execFile(
           scannerPath,
           args,
-          { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
-          (error, stdout, _stderr) => {
+          scannerExecOptions(),
+          (error, stdout, stderr) => {
             cleanup();
             const output = stdout?.trim();
             if (!output) {
-              return reject(
-                new Error(
-                  `Scanner produced no output. ${error?.message ?? ""}`.trim(),
-                ),
-              );
+              return reject(scannerFailure(error, stderr));
             }
             try {
               const result = JSON.parse(output);
@@ -451,15 +461,13 @@ async function scanOnePayload(payload: string, label?: string, context?: unknown
           ...(ctxFile ? ["--action-context", ctxFile] : []),
           "--format",
           "json",
-          "--api-key",
-          getApiKey(),
         ],
-        { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
-        (error, stdout) => {
+        scannerExecOptions(),
+        (error, stdout, stderr) => {
           cleanup();
           const output = stdout?.trim();
           if (!output) {
-            return reject(new Error(`Scanner produced no output. ${error?.message ?? ""}`.trim()));
+            return reject(scannerFailure(error, stderr));
           }
           try {
             resolve(JSON.parse(output));
