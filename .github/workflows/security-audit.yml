@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: npm audit (fail on high or critical)
         # Lockfile only: no install, nothing executed. A registry outage is not

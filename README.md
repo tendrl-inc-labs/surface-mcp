@@ -1,6 +1,6 @@
 # Surface MCP Server
 
-Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
+Model Context Protocol server for [Surface](https://tendrl.com/docs/surface/overview/). Gives any MCP-compatible AI assistant (Claude, etc.) the ability to scan files, manage accounts, and access SDK/API documentation.
 
 ## Install
 
@@ -44,12 +44,12 @@ npm run build
 Set your API key:
 
 ```bash
-export SURFACE_KEY="sfk_your_token_here"
+export SURFACE_KEY="your-surface-api-key"
 ```
 
 ### Optional: Local Scanner
 
-Point `SURFACE_SCANNER_PATH` at the Surface scanner binary to scan files locally. Files never leave your machine — the binary runs on your hardware and reports results to the server.
+Point `SURFACE_SCANNER_PATH` at the Surface scanner binary to scan files locally. Files never leave your machine: the binary runs on your hardware, and this server does not start it with `--report-results`, so apart from the binary's license check nothing about a scan reaches the Surface API.
 
 ```bash
 export SURFACE_SCANNER_PATH="/usr/local/bin/surface-scanner"
@@ -62,7 +62,7 @@ When this is not set, `scan_file` uploads to the API instead.
 Set a custom base URL (defaults to `https://app.tendrl.com/surface/api`):
 
 ```bash
-export SURFACE_BASE_URL="http://localhost:9080/api"
+export SURFACE_BASE_URL="http://localhost:8085/api"
 ```
 
 ## Usage with Claude Desktop
@@ -76,7 +76,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "command": "node",
       "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SURFACE_KEY": "sfk_your_token_here"
+        "SURFACE_KEY": "your-surface-api-key"
       }
     }
   }
@@ -92,7 +92,7 @@ With local scanner (files never leave your machine):
       "command": "node",
       "args": ["/path/to/surface/mcp-server/dist/index.js"],
       "env": {
-        "SURFACE_KEY": "sfk_your_token_here",
+        "SURFACE_KEY": "your-surface-api-key",
         "SURFACE_SCANNER_PATH": "/usr/local/bin/surface-scanner"
       }
     }
@@ -108,10 +108,10 @@ Add to your Claude Code settings:
 
 ```bash
 # API mode (uploads to server)
-claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_your_token_here
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=your-surface-api-key
 
 # Local scanner mode (files stay on your machine)
-claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=sfk_your_token_here -e SURFACE_SCANNER_PATH=/usr/local/bin/surface-scanner
+claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE_KEY=your-surface-api-key -e SURFACE_SCANNER_PATH=/usr/local/bin/surface-scanner
 ```
 
 ## Tools
@@ -119,7 +119,7 @@ claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE
 | Tool | Description |
 |------|-------------|
 | `scan_file` | Upload and scan a file for malware (accepts absolute file path) |
-| `scan_payload` | Scan raw content for threats — detects prompt injection, SQL/XSS injection, credential leaks, malicious code, and suspicious tool calls. Accepts raw text (default) or base64 for binary. Max 10 MB. Takes an optional `context` for action screening (see below). |
+| `scan_payload` | Scan raw content for threats — detects prompt injection, SQL/XSS injection, credential leaks, malicious code, and suspicious tool calls. Accepts raw text (default) or base64 for binary. Max 10 MB. |
 | `get_scan` | Poll a deferred scan result by scan ID |
 | `get_account` | Get account details |
 | `get_usage` | Get scan usage vs monthly limit |
@@ -133,26 +133,6 @@ claude mcp add surface node /path/to/surface/mcp-server/dist/index.js -e SURFACE
 | `get_scan_history` | Get paginated scan history |
 | `get_scan_detail` | Get full details of a historical scan |
 | `get_plans` | Get available billing plans |
-
-### Action screening context
-
-When `scan_payload` (or `scan_bundle`) receives a tool call an agent is about to make, some actions are dangerous on their own (deleting a database, a secret in a URL, a crypto-address payout) and some only relative to you — data is only leaking if it leaves your domains or goes to a host you never declared. Pass an optional `context` object so the screener can decide confidently instead of defaulting to "Review":
-
-```json
-{
-  "payload": "{\"tool\":\"http_request\",\"args\":{\"method\":\"POST\",\"url\":\"https://webhook.partner.io/sync\",\"body\":{}}}",
-  "context": {
-    "principal_domains": ["acme.io"],
-    "allowed_egress": ["api.stripe.com", "hooks.slack.com"],
-    "user_request": "sync this week's tickets to our partner"
-  }
-}
-```
-
-- **Data egress** leaving `principal_domains` (or to a free-mail address) is flagged; with `allowed_egress` set, a POST to a host on neither list is flagged for review while a Stripe or Slack call passes. A bare-IP destination or a secret in the body flags even without context.
-- **Personal mailboxes** (Gmail, Outlook…) are ordinary for agents, so below strict a send to one is held only when `user_request` was passed and never named that address, the message describes bulk data, or the call came out of a document. Without `user_request` such sends are not judged — pass it to turn exfiltration screening on.
-- **Dangerous on its face** — crypto and gift-card payouts, `rm -rf` of a data directory, admin grants — flag with no context.
-- Build `context` from **trusted host state**, never from the payload being scanned. It is optional; omit it for face-value screening.
 
 ## Resources
 
