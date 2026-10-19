@@ -637,7 +637,7 @@ server.tool(
     webhook_api_key: z
       .string()
       .optional()
-      .describe("API key sent in webhook requests for authentication"),
+      .describe("Auth header value sent in webhook requests for your endpoint. Not the signing key: X-Surface-Signature uses the profile's own signing secret"),
   },
   async (params) => {
     const result = await apiRequest("POST", "/account/profiles", params);
@@ -729,7 +729,7 @@ server.tool(
 // --- Delete API Key ---
 server.tool(
   "delete_api_key",
-  "Revoke an API key by its internal id (the 'id' field from list_api_keys or create_api_key, not the api_key_id). Requires the calling key to have API-key delete permission (the admin role).",
+  "Permanently delete an API key by its internal id (the 'id' field from list_api_keys or create_api_key, not the api_key_id). Requires the calling key to have API-key delete permission (the admin role).",
   {
     key_id: z.string().describe("Internal key id to delete (the 'id' field from list_api_keys)"),
   },
@@ -739,7 +739,7 @@ server.tool(
       `/api-keys/${encodeURIComponent(key_id)}`,
     );
     return {
-      content: [{ type: "text", text: "API key revoked." }],
+      content: [{ type: "text", text: "API key deleted." }],
     };
   },
 );
@@ -1049,7 +1049,7 @@ Response includes \`id\`, \`api_key_id\` and \`token\` (shown once — store it 
 Assign or unassign a scan profile. Body: \`{"profile_id": "uuid"}\` (empty string to unassign).
 
 ### DELETE /api-keys/:id
-Revoke a key by its internal \`id\` (not \`api_key_id\`). Admin role required.
+Permanently delete a key by its internal \`id\` (not \`api_key_id\`). Admin role required.
 
 ---
 
@@ -1076,8 +1076,9 @@ When a scan profile has a \`webhook_url\` configured, Surface POSTs the scan res
 
 **Headers sent:**
 - \`Content-Type: application/json\`
-- \`X-Surface-Signature: sha256=<hmac>\` — HMAC-SHA256 of the body using \`webhook_api_key\` as the secret
-- \`X-API-Key: <webhook_api_key>\`
+- \`X-Surface-Signature: sha256=<hex>\` — HMAC-SHA256 of the raw body, keyed with the profile's signing secret (\`whsec_...\`). Surface generates it when the profile gets a webhook URL and never sends it. Read it on the profile in the dashboard or with \`GET /account/profiles/{id}/webhook-secret\`; rotate with \`POST /account/profiles/{id}/webhook-secret/rotate\`.
+- \`X-Surface-Request-ID: <requestId>\`
+- The auth header configured in \`webhook_api_key\`, if any (for example \`Authorization: Bearer <token>\`). It is not the signing key.
 
 **Payload:**
 \`\`\`json
@@ -1090,7 +1091,7 @@ When a scan profile has a \`webhook_url\` configured, Surface POSTs the scan res
 }
 \`\`\`
 
-**Signature verification:** Compute \`HMAC-SHA256(body_bytes, webhook_api_key)\` and compare with the signature header. All SDKs provide a \`verify_webhook_signature\` helper.
+**Signature verification:** Compute \`HMAC-SHA256(body_bytes, signing_secret)\` with the profile's signing secret (\`GET /account/profiles/{id}/webhook-secret\`) and compare with the signature header in constant time. All SDKs provide a \`verify_webhook_signature\` helper.
 
 ---
 
@@ -1182,6 +1183,12 @@ Webhooks let your server react to scan results in real-time. When a scan profile
 
 3. Use that API key for scans — results will be POSTed to your webhook URL.
 
+4. Get the profile's signing secret (\`whsec_...\`) from the profile in the dashboard, or:
+   \`\`\`
+   GET /account/profiles/<profile-id>/webhook-secret
+   \`\`\`
+   Surface generates it when the profile gets a webhook URL and never sends it. \`webhook_api_key\` is only the auth header Surface sends to your endpoint. Rotate the secret with \`POST /account/profiles/<profile-id>/webhook-secret/rotate\`.
+
 ## Webhook Payload
 
 \`\`\`json
@@ -1209,7 +1216,7 @@ Webhooks let your server react to scan results in real-time. When a scan profile
 
 ## Signature Verification
 
-Every webhook request includes an \`X-Surface-Signature\` header containing an HMAC-SHA256 signature of the request body.
+Every webhook request includes an \`X-Surface-Signature\` header containing an HMAC-SHA256 signature of the raw request body, keyed with the profile's signing secret (\`whsec_...\`, the whole string including the prefix). It is not \`webhook_api_key\`.
 
 ### Python
 \`\`\`python
@@ -1217,7 +1224,7 @@ from surface import verify_webhook_signature
 
 is_valid = verify_webhook_signature(
     body=request.body,
-    secret="your_webhook_secret",
+    secret="whsec_your_signing_secret",
     signature_header=request.headers["X-Surface-Signature"],
 )
 \`\`\`
@@ -1228,7 +1235,7 @@ import { verifyWebhookSignature } from "@surface/sdk";
 
 const isValid = await verifyWebhookSignature(
     requestBody,
-    "your_webhook_secret",
+    "whsec_your_signing_secret",
     request.headers["x-surface-signature"],
 );
 \`\`\`
@@ -1237,7 +1244,7 @@ const isValid = await verifyWebhookSignature(
 \`\`\`go
 isValid := surface.VerifyWebhookSignature(
     bodyBytes,
-    "your_webhook_secret",
+    "whsec_your_signing_secret",
     r.Header.Get("X-Surface-Signature"),
 )
 \`\`\`
