@@ -1,0 +1,36 @@
+# Scheduled dependency updates, matching the service repos. Security alerts and
+# their fix PRs are separate (repo Settings → Code security).
+#
+# Added 2026-11 after the daily security audit failed for three weeks on
+# transitive advisories (zod, body-parser via @modelcontextprotocol/sdk) with
+# nothing proposing a fix (#17). The lockfile mirrors tendrl-surface's
+# mcp-server/, so expect the same bump there.
+#
+# Monthly, minor+patch grouped into one PR, majors on their own, automatic
+# rebasing off (same reasoning as the service repos).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    rebase-strategy: "disabled"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    rebase-strategy: "disabled"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
